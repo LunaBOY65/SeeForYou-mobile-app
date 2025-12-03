@@ -28,7 +28,12 @@ class _RootScreenState extends State<RootScreen> {
           setState(() => _index = 2);
         },
       ),
-      const ResultScreen(),
+      ResultScreen(
+        onRetake: () {
+          // จากหน้าผลลัพธ์ -> กลับมาหน้ากล้อง (index 1)
+          setState(() => _index = 1);
+        },
+      ),
       const SettingsScreen(),
     ];
 
