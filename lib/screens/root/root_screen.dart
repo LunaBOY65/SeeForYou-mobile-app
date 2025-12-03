@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 // screens
@@ -33,145 +34,97 @@ class _RootScreenState extends State<RootScreen> {
 
     return Scaffold(
       body: screens[_index],
-      bottomNavigationBar: NavigationBarTheme(
-        // ใช้ Theme เพื่อกำหนดรูปแบบวงกลม
-        data: NavigationBarThemeData(
-          indicatorColor: Colors.transparent, // กำหนดรูปร่างเป็นวงกลม
-          labelTextStyle: MaterialStateProperty.all(
-            const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-          ),
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
         ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
-          backgroundColor: Colors.white, // สีพื้นหลังของบาร์ (สีดำ)
-          height: 90, // ความสูงของบาร์
-          destinations: [
-            // 1. Info
-            NavigationDestination(
-              icon: const Icon(
-                Icons.info_outline,
-                color: Colors.grey,
-              ), // ไอคอนตอนไม่เลือก
-              selectedIcon: Container(
-                // 2. สร้างวงกลมเองตรงนี้
-                width: 60, // กำหนดความกว้างวงกลม (ยิ่งเยอะยิ่งใหญ่)
-                height: 60, // กำหนดความสูงวงกลม
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700), // สีเหลือง
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.info_outline,
-                  color: Colors.black,
-                  size: 30,
-                ),
-              ),
+        child: BottomNavigationBar(
+          currentIndex: _index,
+          onTap: (i) {
+            HapticFeedback.vibrate(); // สั่นตอนกดปุ่ม
+            setState(() => _index = i);
+          },
+          backgroundColor: Colors.white,
+          type: BottomNavigationBarType.fixed, // ป้องกันปุ่มเด้งไปมา
+          elevation: 0, // เอาเงาออก
+          selectedFontSize: 17,
+          unselectedFontSize: 17,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey,
+          items: [
+            _buildNavItem(
+              index: 0,
               label: 'Info',
+              iconData: Icons.info_outline,
             ),
-
-            // 2. Camera
-            NavigationDestination(
-              icon: SvgPicture.asset(
-                'assets/icons/camera_icon.svg',
-                width: 30,
-                height: 30,
-                colorFilter: const ColorFilter.mode(
-                  Colors.grey,
-                  BlendMode.srcIn,
-                ),
-              ),
-              selectedIcon: Container(
-                width: 60, // ปรับขนาดวงกลมได้ตามใจชอบตรงนี้
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  // ต้องมี Center เพื่อจัด icon ให้อยู่กลางวงกลม
-                  child: SvgPicture.asset(
-                    'assets/icons/camera_icon.svg',
-                    width: 30,
-                    height: 30,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.black,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-              ),
+            _buildNavItem(
+              index: 1,
               label: 'กล้อง',
+              assetPath: 'assets/icons/camera_icon.svg',
             ),
-
-            // 3. Result
-            NavigationDestination(
-              icon: SvgPicture.asset(
-                'assets/icons/robotics_icon.svg',
-                width: 30,
-                height: 30,
-                colorFilter: const ColorFilter.mode(
-                  Colors.grey,
-                  BlendMode.srcIn,
-                ),
-              ),
-              selectedIcon: Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/robotics_icon.svg',
-                    width: 30,
-                    height: 30,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.black,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-              ),
+            _buildNavItem(
+              index: 2,
               label: 'ผลลัพธ์',
+              assetPath: 'assets/icons/robotics_icon.svg',
             ),
-
-            // 4. Settings
-            NavigationDestination(
-              icon: SvgPicture.asset(
-                'assets/icons/settings_icon.svg',
-                width: 30,
-                height: 30,
-                colorFilter: const ColorFilter.mode(
-                  Colors.grey,
-                  BlendMode.srcIn,
-                ),
-              ),
-              selectedIcon: Container(
-                width: 60,
-                height: 60,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: SvgPicture.asset(
-                    'assets/icons/settings_icon.svg',
-                    width: 30,
-                    height: 30,
-                    colorFilter: const ColorFilter.mode(
-                      Colors.black,
-                      BlendMode.srcIn,
-                    ),
-                  ),
-                ),
-              ),
+            _buildNavItem(
+              index: 3,
               label: 'ตั้งค่า',
+              assetPath: 'assets/icons/settings_icon.svg',
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // เพิ่มฟังก์ชันใหม่ตรงนี้ (ก่อนปิดปีกกา Class)
+  BottomNavigationBarItem _buildNavItem({
+    required int index,
+    required String label,
+    String? assetPath,
+    IconData? iconData,
+  }) {
+    final isSelected = _index == index;
+    const double circleSize = 48;
+    const double iconSize = 27;
+
+    Widget iconWidget;
+    if (assetPath != null) {
+      iconWidget = SvgPicture.asset(
+        assetPath,
+        width: iconSize,
+        height: iconSize,
+        colorFilter: ColorFilter.mode(
+          isSelected ? Colors.black : Colors.grey,
+          BlendMode.srcIn,
+        ),
+      );
+    } else {
+      iconWidget = Icon(
+        iconData,
+        size: iconSize,
+        color: isSelected ? Colors.black : Colors.grey,
+      );
+    }
+
+    return BottomNavigationBarItem(
+      icon: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(10),
+        child: iconWidget,
+      ),
+      activeIcon: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        width: circleSize,
+        height: circleSize,
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFD700),
+          shape: BoxShape.circle,
+        ),
+        child: Center(child: iconWidget),
+      ),
+      label: label,
     );
   }
 }
