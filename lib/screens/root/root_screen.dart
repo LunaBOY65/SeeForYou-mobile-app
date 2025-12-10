@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:seeforyou_app/screens/history/history_screen.dart';
 
 // screens
 import '../camera/camera_screen.dart';
 import '../result/result_screen.dart';
 import '../settings/settings_screen.dart';
-import '../placeholder/info_screen.dart';
 
 class RootScreen extends StatefulWidget {
   const RootScreen({super.key});
@@ -18,20 +18,33 @@ class RootScreen extends StatefulWidget {
 class _RootScreenState extends State<RootScreen> {
   int _index = 1; // เริ่มต้นที่หน้ากล้อง (Index 1)
 
+  String? _imagePath;
+
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const InfoScreen(),
+      const HistoryScreen(),
       CameraScreen(
         onCapture: () {
           // ถ่ายเสร็จโยนไปหน้า Result
           setState(() => _index = 2);
         },
+        onImageSelected: (path) {
+          setState(() {
+            _imagePath = path; // เก็บ Path รูป
+            _index = 2; // กระโดดไปหน้า Result
+          });
+        },
       ),
       ResultScreen(
+        //ส่ง Path รูปไปให้หน้า Result (เดี๋ยวเราต้องไปแก้ ResultScreen ให้รับค่านี้)
+        imagePath: _imagePath,
         onRetake: () {
           // จากหน้าผลลัพธ์ -> กลับมาหน้ากล้อง (index 1)
-          setState(() => _index = 1);
+          setState(() {
+            _imagePath = null;
+            _index = 1;
+          });
         },
       ),
       const SettingsScreen(),
@@ -59,8 +72,8 @@ class _RootScreenState extends State<RootScreen> {
           items: [
             _buildNavItem(
               index: 0,
-              label: 'Info',
-              iconData: Icons.info_outline,
+              label: 'ประวัติ',
+              assetPath: 'assets/icons/time_icon.svg',
             ),
             _buildNavItem(
               index: 1,

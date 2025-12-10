@@ -1,19 +1,44 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
-class ResultScreen extends StatelessWidget {
-  final VoidCallback? onRetake; // 1. เพิ่มตัวแปรรับฟังก์ชัน
+class ResultScreen extends StatefulWidget {
+  final VoidCallback? onRetake;
+  final String? imagePath;
 
-  const ResultScreen({super.key, this.onRetake}); // 2. แก้ไข Constructor
+  const ResultScreen({super.key, this.onRetake, this.imagePath});
+
+  @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  bool _isLoading = true;
+  String _resultText = "กำลังวิเคราะห์ภาพ... กรุณารอสักครู่";
+
+  @override
+  void initState() {
+    super.initState();
+    _simulateApiCall(); // จำลองการโหลดเมื่อเข้าหน้า
+  }
+
+  Future<void> _simulateApiCall() async {
+    await Future.delayed(const Duration(seconds: 3));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _resultText =
+            "มีผู้ชายหนึ่งคนนั่งอยู่ทางซ้าย และมีแก้วกาแฟวางอยู่บนโต๊ะตรงหน้า";
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // ในอนาคตรับผลลัพธ์ผ่าน Provider / Riverpod / arguments
-    final sampleText = 'มีผู้ชายหนึ่งคนนั่งอยู่ทางซ้าย ... (ตัวอย่างผลลัพธ์)';
-
     return Scaffold(
-      appBar: AppBar(title: const Text('ผลการวิเคราะห์'), centerTitle: true),
+      appBar: AppBar(title: const Text('คำอธิบายภาพ'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -22,24 +47,28 @@ class ResultScreen extends StatelessWidget {
             Container(
               height: 250,
               width: double.infinity,
+              clipBehavior: Clip.hardEdge,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 color: const Color(0xFFF5F5F5),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  size: 64,
-                  color: Colors.grey[400],
-                ),
-              ),
+              // logic แสดงรูป: ถ้ามี path ให้โชว์รูป ถ้าไม่มีโชว์ icon เดิม
+              child: widget.imagePath != null
+                  ? Image.file(File(widget.imagePath!), fit: BoxFit.cover)
+                  : Center(
+                      child: Icon(
+                        Icons.image_outlined,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                    ),
             ),
             const SizedBox(height: 16),
 
@@ -51,25 +80,35 @@ class ResultScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: Colors.white,
+                  border: Border.all(
+                    color: const Color(0xFFFFD700), // ขอบสีเหลือง
+                    width: 3,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    sampleText,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      height: 1.6,
-                      color: Color(0xFF212121),
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFFFD700),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Text(
+                          _resultText,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            height: 1.6,
+                            color: Color(0xFF212121),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
               ),
             ),
 
@@ -100,7 +139,7 @@ class ResultScreen extends StatelessWidget {
                       ),
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        onRetake?.call(); // คำสั่งกลับไปหน้าก่อนหน้า (กล้อง)
+                        widget.onRetake?.call(); // เรียกผ่าน widget.
                       },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -133,9 +172,7 @@ class ResultScreen extends StatelessWidget {
                     flex: 2,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(
-                          0xFFFFD700,
-                        ), // สีเหลือง (High Contrast)
+                        backgroundColor: const Color(0xFFFFD700),
                         foregroundColor: Colors.black,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -162,8 +199,7 @@ class ResultScreen extends StatelessWidget {
                           const Text(
                             'เล่นเสียง',
                             style: TextStyle(
-                              fontSize:
-                                  24, // ลดขนาดตัวหนังสือลงนิดหน่อยให้พอดีกับปุ่มครึ่งจอ
+                              fontSize: 24,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
