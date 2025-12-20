@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
-
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:seeforyou_app/services/api_service.dart';
 
 class ResultScreen extends StatefulWidget {
   final VoidCallback? onRetake;
@@ -17,21 +19,83 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   bool _isLoading = true;
   String _resultText = "กำลังวิเคราะห์ภาพ... กรุณารอสักครู่";
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  String? _audioUrl;
 
   @override
   void initState() {
     super.initState();
-    _simulateApiCall(); // จำลองการโหลดเมื่อเข้าหน้า
+    _analyzeImage();
   }
 
-  Future<void> _simulateApiCall() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) {
+  // ฟังก์ชันสำหรับคืนทรัพยากรเมื่อปิดหน้าจอนี้ (สำคัญมาก)
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  // ฟังก์ชันสั่งเล่นเสียง
+  Future<void> _playAudio() async {
+    if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+      try {
+        await _audioPlayer.stop(); // หยุดเสียงเก่าก่อน (ถ้ามี)
+        await _audioPlayer.play(UrlSource(_audioUrl!)); // เล่นจาก URL
+      } catch (e) {
+        debugPrint("Error playing audio: $e");
+      }
+    } else {
+      debugPrint("No audio URL found");
+    }
+  }
+
+  // ฟังก์ชันยิง API ของจริง
+  Future<void> _analyzeImage() async {
+    if (widget.imagePath == null) {
       setState(() {
         _isLoading = false;
-        _resultText =
-            "มีผู้ชายหนึ่งคนนั่งอยู่ทางซ้าย และมีแก้วกาแฟวางอยู่บนโต๊ะตรงหน้า";
+        _resultText = "ไม่พบไฟล์รูปภาพ กรุณาถ่ายใหม่";
       });
+      return;
+    }
+
+    try {
+      final imageFile = File(widget.imagePath!);
+      final response = await ApiService.uploadImage(imageFile);
+
+      if (response.statusCode == 200) {
+        // แปลงข้อมูล JSON ที่ได้จาก Python Server
+        // Response format: {"message": "...", "expiry_date": "...", "status": "..."}
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        final message = data['message'] ?? "ไม่สามารถอ่านค่าได้";
+        final audioUrl = data['audio_url'];
+
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _resultText = message;
+            _audioUrl = audioUrl;
+          });
+
+          // เล่นเสียงอัตโนมัติหลังวิเคราะห์เสร็จ
+          _playAudio();
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _resultText =
+                "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Code: ${response.statusCode})";
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _resultText = "การเชื่อมต่อขัดข้อง: $e";
+        });
+      }
     }
   }
 
@@ -181,7 +245,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       ),
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        // TODO: เรียก Botnoi Voice API play
+                        _playAudio();
                       },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
