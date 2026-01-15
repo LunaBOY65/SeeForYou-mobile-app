@@ -19,23 +19,15 @@ class CameraOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // กรอบเล็งตรงกลาง
-        Center(
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.8,
-            height: MediaQuery.of(context).size.width * 0.5,
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFFFD700), width: 3),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: Text(
-                "ส่องวันหมดอายุในกรอบ",
-                style: TextStyle(
-                  color: Colors.white,
-                  shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-                ),
-              ),
+        // เปลี่ยนเป็นข้อความบอกสถานะด้านล่างแทน หรือปล่อยโล่ง
+        Align(
+          alignment: Alignment.center,
+          child: Text(
+            "ส่องกล้องไปทั่วๆ เพื่อค้นหา",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 18,
+              shadows: [Shadow(blurRadius: 4, color: Colors.black)],
             ),
           ),
         ),

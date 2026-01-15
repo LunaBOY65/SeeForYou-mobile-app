@@ -1,7 +1,24 @@
-import 'dart:io';
-import 'dart:ui' as ui;
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+
+// Class นี้เพื่อส่งสถานะกลับไปบอก UI
+class ScanResult {
+  final String? expiryDate; // วันที่ (ถ้าเจอ)
+  final bool hasText; // มีตัวหนังสือในภาพไหม (ใช้ทำเสียงติ๊กๆ)
+  final bool isWrongAngle;
+  final Rect?
+  boundingBox; // เก็บตำแหน่งกรอบสี่เหลี่ยม (x, y, width, height)
+  final double? angle; // [เพิ่ม] เก็บองศาที่วัดได้จริง
+
+  ScanResult({
+    this.expiryDate,
+    this.hasText = false,
+    this.isWrongAngle = false,
+    this.boundingBox,
+    this.angle,
+  });
+}
 
 class ExpiryScannerService {
   final TextRecognizer _textRecognizer = TextRecognizer(
@@ -10,41 +27,121 @@ class ExpiryScannerService {
 
   // ฟังก์ชันหลักที่หน้า Camera จะเรียกใช้
   // Return: วันที่ที่เจอ (String) หรือ null ถ้าไม่เจอ
-  Future<String?> processImage(String imagePath) async {
+  Future<ScanResult> processImageSmart(String imagePath) async {
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
       final RecognizedText recognizedText = await _textRecognizer.processImage(
         inputImage,
       );
 
-      // 1. คำนวณ ROI (พื้นที่ตรงกลาง)
-      final data = await File(imagePath).readAsBytes();
-      final ui.Image image = await decodeImageFromList(data);
+      //เช็คว่าภาพนี้มีตัวหนังสือบ้างไหม
+      bool foundAnyText = recognizedText.blocks.isNotEmpty;
 
-      final Rect roi = Rect.fromCenter(
-        center: Offset(image.width.toDouble() / 2, image.height.toDouble() / 2),
-        width: image.width.toDouble() * 0.8,
-        height: image.height.toDouble() * 0.4,
-      );
+      // [เพิ่ม] Logic เช็คทิศทาง (9-3 นาฬิกา)
+      // ถ้ามีข้อความ แต่ข้อความส่วนใหญ่ "เอียง" หรือ "เป็นแนวตั้ง" ให้แจ้งเตือน User ก่อน
+      bool globalWrongAngle = false;
 
-      // 2. กรอง TextBlock
-      StringBuffer buffer = StringBuffer();
-      for (TextBlock block in recognizedText.blocks) {
-        if (roi.overlaps(block.boundingBox)) {
-          buffer.write(block.text);
-          buffer.write(" ");
+      if (foundAnyText) {
+        int badAngleCount = 0;
+        int totalBlocks = 0;
+
+        for (TextBlock block in recognizedText.blocks) {
+          // ข้าม block เล็กๆ น้อยๆ ที่อาจเป็น noise
+          if (block.text.length < 3) continue;
+
+          totalBlocks++;
+          // คำนวณองศาจากจุดมุมซ้ายบน (0) และขวาบน (1)
+          final corners = block.cornerPoints;
+          // จุด 0 คือ Top-Left, จุด 1 คือ Top-Right
+          final p1 = corners[0];
+          final p2 = corners[1];
+
+          // หาองศา
+          // atan2(deltaY, deltaX) * 180 / PI
+          double angle = atan2(p2.y - p1.y, p2.x - p1.x) * 180 / pi;
+
+          // ถ้ามุมมากกว่า 20 หรือน้อยกว่า -20 แปลว่า "เอียง" หรือ "แนวตั้ง"
+          if (angle.abs() > 20) {
+            badAngleCount++;
+          }
+        }
+
+        // ถ้าข้อความส่วนใหญ่ (เกิน 50%) เอียงผิดมุม ให้ตีว่าเป็น Wrong Angle ทันที
+        if (totalBlocks > 0 && (badAngleCount / totalBlocks) > 0.5) {
+          // แค่จำไว้ว่าภาพรวมมันเอียงนะ
+          globalWrongAngle = true;
         }
       }
 
-      String filteredText = buffer.toString();
-      if (filteredText.trim().isEmpty) return null;
+      // 1. ลองเช็ค "ทีละบรรทัด" ก่อน (Line-by-Line Strategy)
+      // เพราะ OCR มักจะแยกบรรทัดวันที่ออกมาเดี่ยวๆ การเอาไปรวมกันอาจทำให้อ่านผิด
+      for (TextBlock block in recognizedText.blocks) {
+        for (TextLine line in block.lines) {
+          bool lineIsAngled = _isAngled(line.cornerPoints);
 
-      // 3. เรียก Logic การแกะวันที่
-      return _extractDateFromText(filteredText);
+          double currentAngle = 0;
+          if (line.cornerPoints.length >= 2) {
+            final p1 = line.cornerPoints[0];
+            final p2 = line.cornerPoints[1];
+            currentAngle = atan2(p2.y - p1.y, p2.x - p1.x) * 180 / pi;
+          }
+
+          // ส่งเฉพาะบรรทัดนี้ไปตรวจ
+          String? dateInLine = _extractDateFromText(line.text);
+          if (dateInLine != null) {
+            return ScanResult(
+              expiryDate: dateInLine,
+              hasText: true,
+              isWrongAngle: lineIsAngled,
+              boundingBox: line.boundingBox, // [เพิ่ม] ส่งกรอบสี่เหลี่ยมกลับไป
+              angle: currentAngle, // [เพิ่ม] ส่งองศากลับไป
+            );
+          }
+        }
+      }
+
+      if (globalWrongAngle) {
+        return ScanResult(hasText: true, isWrongAngle: true);
+      }
+
+      // 2. ถ้าหาทีละบรรทัดไม่เจอ ค่อยเอามาต่อกันแบบเดิม
+      StringBuffer buffer = StringBuffer();
+      for (TextBlock block in recognizedText.blocks) {
+        // เอาเงื่อนไข ROI ออก เพื่อให้อ่านทั้งภาพ
+        buffer.write(block.text);
+        buffer.write(" ");
+      }
+
+      String filteredText = buffer.toString();
+
+      // [เพิ่ม] Logic การ return แบบใหม่
+      if (filteredText.trim().isEmpty) {
+        return ScanResult(hasText: false);
+      }
+
+      String? date = _extractDateFromText(filteredText);
+      return ScanResult(
+        expiryDate: date,
+        hasText: foundAnyText,
+        isWrongAngle: globalWrongAngle, // ใช้ค่าที่คำนวณไว้ตอนต้น
+      );
     } catch (e) {
       debugPrint("Scanner Service Error: $e");
-      return null;
+      return ScanResult(hasText: false);
     }
+  }
+
+  // ฟังก์ชันช่วยคำนวณองศา
+  bool _isAngled(List<Point<int>> corners) {
+    if (corners.length < 2) return false;
+    final p1 = corners[0]; // Top-Left
+    final p2 = corners[1]; // Top-Right
+
+    // สูตรหาองศา
+    double angle = atan2(p2.y - p1.y, p2.x - p1.x) * 180 / pi;
+
+    // ถ้าเอียงเกิน 20 องศา (ทั้งบวกและลบ) ถือว่าผิดมุม
+    return angle.abs() > 20;
   }
 
   // แยก Logic ออกมาเป็น Private Function เพื่อความเป็นระเบียบ
@@ -73,7 +170,31 @@ class ExpiryScannerService {
       if (y >= 20 && y <= 99) fullYear = 2000 + y;
       if (y >= 2500) fullYear = y - 543;
       if (y >= 60 && y <= 99) fullYear = 1900 + y;
-      return fullYear >= 2023 && fullYear <= 2030;
+      return fullYear >= 2018 && fullYear <= 2032;
+    }
+
+    // Pattern: เลข 1-2 หลัก + (ตัวคั่น) + เลข 1-2 หลัก + (ตัวคั่น) + เลข 2-4 หลัก
+    // รองรับ dd/mm/yy, dd.mm.yy, dd mm yy
+    final loosePattern = RegExp(
+      r'\b(\d{1,2})[\.\/\-\s]?(\d{1,2})[\.\/\-\s]?(\d{2,4})\b',
+    );
+    final matchesLoose = loosePattern.allMatches(correctedText);
+
+    for (final match in matchesLoose) {
+      String p1 = match.group(1)!;
+      String p2 = match.group(2)!;
+      String p3 = match.group(3)!;
+
+      int? v1 = int.tryParse(p1);
+      int? v2 = int.tryParse(p2);
+      int? v3 = int.tryParse(p3);
+
+      if (v1 != null && v2 != null && v3 != null) {
+        // ลองสลับตำแหน่ง (วัน/เดือน/ปี)
+        if (isValidDate(v1, v2, v3)) return "$v1/$v2/$v3"; // d m y
+        if (isValidDate(v2, v1, v3)) return "$v2/$v1/$v3"; // m d y
+        if (isValidDate(v3, v2, v1)) return "$v3/$v2/$v1"; // y m d
+      }
     }
 
     // --- ANCHOR PATTERN (Has Keywords) ---
@@ -122,7 +243,7 @@ class ExpiryScannerService {
     }
 
     // --- FALLBACK (Pure Digits) ---
-    // วิธีที่ 1: กลุ่มตัวเลขติดกัน
+    // กรณี 1: กลุ่มตัวเลขติดกัน
     final digitGroups = RegExp(r'(\d{6,8})').allMatches(digitsOnly);
     for (final match in digitGroups) {
       String raw = match.group(0)!;
