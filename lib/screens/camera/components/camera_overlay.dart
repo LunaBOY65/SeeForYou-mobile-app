@@ -1,0 +1,118 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+class CameraOverlay extends StatelessWidget {
+  final bool isFlashOn;
+  final VoidCallback onToggleFlash;
+  final VoidCallback onGalleryTap;
+  final VoidCallback onCaptureTap;
+
+  const CameraOverlay({
+    super.key,
+    required this.isFlashOn,
+    required this.onToggleFlash,
+    required this.onGalleryTap,
+    required this.onCaptureTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // กรอบเล็งตรงกลาง
+        Center(
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.8,
+            height: MediaQuery.of(context).size.width * 0.5,
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFFFD700), width: 3),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(
+              child: Text(
+                "ส่องวันหมดอายุในกรอบ",
+                style: TextStyle(
+                  color: Colors.white,
+                  shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // ปุ่ม Flash
+        Positioned(
+          top: MediaQuery.of(context).padding.top + 10,
+          right: 20,
+          child: IconButton(
+            icon: Icon(
+              isFlashOn ? Icons.flash_on : Icons.flash_off,
+              color: Colors.white,
+              size: 30,
+            ),
+            onPressed: onToggleFlash,
+          ),
+        ),
+
+        // ปุ่ม Gallery
+        Positioned(
+          bottom: 60,
+          left: 40,
+          child: GestureDetector(
+            onTap: onGalleryTap,
+            child: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: Colors.black45,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: SvgPicture.asset(
+                  'assets/icons/folder_icon.svg',
+                  colorFilter: const ColorFilter.mode(
+                    Colors.white,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // ปุ่มถ่ายรูป
+        Positioned(
+          bottom: 30,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: GestureDetector(
+              onTap: onCaptureTap,
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 4),
+                  color: Colors.white30,
+                ),
+                child: Center(
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:seeforyou_app/screens/intro/intro_screen.dart';
 
 // screens
 import '../camera/camera_screen.dart';
 import '../result/result_screen.dart';
-import '../settings/settings_screen.dart';
 
 class RootScreen extends StatefulWidget {
   const RootScreen({super.key});
@@ -22,15 +22,22 @@ class _RootScreenState extends State<RootScreen> {
   @override
   Widget build(BuildContext context) {
     final screens = [
+      // Index 0: หน้า Intro
+      IntroScreen(
+        onNext: () {
+          setState(() => _index = 1); // สั่งเปลี่ยนไปหน้ากล้อง
+        },
+      ),
+
       CameraScreen(
         onCapture: () {
           // ถ่ายเสร็จโยนไปหน้า Result
-          setState(() => _index = 1);
+          setState(() => _index = 2);
         },
         onImageSelected: (path) {
           setState(() {
             _imagePath = path; // เก็บ Path รูป
-            _index = 1; // กระโดดไปหน้า Result
+            _index = 2; // กระโดดไปหน้า Result
           });
         },
       ),
@@ -41,11 +48,10 @@ class _RootScreenState extends State<RootScreen> {
           // จากหน้าผลลัพธ์ -> กลับมาหน้ากล้อง (index 1)
           setState(() {
             _imagePath = null;
-            _index = 0;
+            _index = 1;
           });
         },
       ),
-      const SettingsScreen(),
     ];
 
     return Scaffold(
@@ -68,20 +74,22 @@ class _RootScreenState extends State<RootScreen> {
           selectedItemColor: Colors.black,
           unselectedItemColor: Colors.grey,
           items: [
+            // เพิ่มปุ่มที่ 1: วิธีใช้
             _buildNavItem(
               index: 0,
+              label: 'วิธีใช้',
+              iconData:
+                  Icons.info_outline_rounded, // ใช้ Icon เพราะไม่มีไฟล์ svg
+            ),
+            _buildNavItem(
+              index: 1,
               label: 'กล้อง',
               assetPath: 'assets/icons/camera_icon.svg',
             ),
             _buildNavItem(
-              index: 1,
+              index: 2,
               label: 'ผลลัพธ์',
               assetPath: 'assets/icons/robotics_icon.svg',
-            ),
-            _buildNavItem(
-              index: 2,
-              label: 'ตั้งค่า',
-              assetPath: 'assets/icons/settings_icon.svg',
             ),
           ],
         ),
