@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class IntroScreen extends StatefulWidget {
-  // เพิ่มตัวรับคำสั่งเมื่อต้องการไปหน้าถัดไป
   final VoidCallback? onNext;
 
   const IntroScreen({super.key, this.onNext});
@@ -23,7 +22,7 @@ class _IntroScreenState extends State<IntroScreen> {
   @override
   void initState() {
     super.initState();
-    _playHintLoop(); // 2. เริ่มเล่นเสียงวนทันทีที่เปิดหน้านี้
+    _playHintLoop(); // เริ่มเล่นเสียงวนทันทีที่เปิดหน้านี้
   }
 
   @override
@@ -37,10 +36,11 @@ class _IntroScreenState extends State<IntroScreen> {
   // ฟังก์ชันเล่นเสียงวน (จะเล่นวนไปเรื่อยๆ จนกว่าคนจะกด)
   Future<void> _playHintLoop() async {
     try {
-      if (_isPlayingInstruction)
+      if (_isPlayingInstruction) {
         return; // ถ้ากำลังฟังคำอธิบายหลักอยู่ ไม่ต้องเล่นอันนี้
+      }
+
       await _hintPlayer.setReleaseMode(ReleaseMode.loop); // ตั้งโหมดวนลูป
-      // *** ต้องมีไฟล์ hint.mp3 ใน assets/audio/ นะครับ ***
       await _hintPlayer.play(AssetSource('audio/hint.mp3'));
     } catch (e) {
       debugPrint("Hint Audio Error: $e");
@@ -73,7 +73,7 @@ class _IntroScreenState extends State<IntroScreen> {
     _holdTimer?.cancel();
     _secondsHeld = 0;
 
-    // 6. ถ้าปล่อยมือก่อนครบ (และเสียงหลักยังไม่เล่น) ให้กลับมาเล่นเสียงวนใหม่
+    // ถ้าปล่อยมือก่อนครบ (และเสียงหลักยังไม่เล่น) ให้กลับมาเล่นเสียงวนใหม่
     if (!_isPlayingInstruction) {
       _playHintLoop();
     }
@@ -108,7 +108,7 @@ class _IntroScreenState extends State<IntroScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0), // เว้นระยะขอบรอบด้าน
           child: GestureDetector(
-            // Logic การกดและปัดอยู่ที่ตัวปุ่มใหญ่ปุ่มเดียวเลย
+            // การกดและปัดอยู่ที่ตัวปุ่มใหญ่ปุ่มเดียวเลย
             onHorizontalDragEnd: (details) {
               if (details.primaryVelocity != null &&
                   details.primaryVelocity! < 0) {
@@ -125,14 +125,12 @@ class _IntroScreenState extends State<IntroScreen> {
               decoration: BoxDecoration(
                 // เปลี่ยนเป็นสีเหลือง
                 color: _isPlayingInstruction
-                    ? const Color(
-                        0xFFDAA520,
-                      ) // สีเหลืองเข้มขึ้นตอนกด (Goldenrod)
-                    : const Color(0xFFFFD700), // สีเหลืองทองปกติ (Gold)
-                borderRadius: BorderRadius.circular(24), // มุมโค้งมน
+                    ? const Color(0xFFDAA520)
+                    : const Color(0xFFFFD700),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -143,15 +141,15 @@ class _IntroScreenState extends State<IntroScreen> {
                 children: [
                   Icon(
                     Icons.touch_app_rounded,
-                    size: 100, // ไอคอนขนาดใหญ่
-                    color: Colors.black.withOpacity(0.8), // สีดำ
+                    size: 100,
+                    color: Colors.black.withValues(alpha: 0.8),
                   ),
                   const SizedBox(height: 30),
                   const Text(
                     "กดค้าง 5 วินาที",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.black, // สีดำ
+                      color: Colors.black,
                       fontSize: 42,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
@@ -161,13 +159,12 @@ class _IntroScreenState extends State<IntroScreen> {
                     "เพื่อฟังคำอธิบาย",
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Colors.black, // สีดำ
+                      color: Colors.black,
                       fontSize: 34,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 40),
-                  // เพิ่มข้อความบอกให้ปัดขวาจางๆ
                   Opacity(
                     opacity: 0.5,
                     child: const Text(

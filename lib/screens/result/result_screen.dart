@@ -28,7 +28,7 @@ class _ResultScreenState extends State<ResultScreen> {
     _analyzeImage();
   }
 
-  // ฟังก์ชันสำหรับคืนทรัพยากรเมื่อปิดหน้าจอนี้ (สำคัญมาก)
+  // ฟังก์ชันสำหรับคืนทรัพยากร
   @override
   void dispose() {
     _audioPlayer.dispose();
@@ -65,7 +65,6 @@ class _ResultScreenState extends State<ResultScreen> {
 
       if (response.statusCode == 200) {
         // แปลงข้อมูล JSON ที่ได้จาก Python Server
-        // Response format: {"message": "...", "expiry_date": "...", "status": "..."}
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final message = data['message'] ?? "ไม่สามารถอ่านค่าได้";
         final audioUrl = data['audio_url'];
@@ -107,7 +106,6 @@ class _ResultScreenState extends State<ResultScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // กล่องแสดงรูปภาพตัวอย่างที่วิเคราะห์แล้ว (ตามสเก็ตช์)
             Container(
               height: 250,
               width: double.infinity,
@@ -123,7 +121,7 @@ class _ResultScreenState extends State<ResultScreen> {
                   ),
                 ],
               ),
-              // logic แสดงรูป: ถ้ามี path ให้โชว์รูป ถ้าไม่มีโชว์ icon เดิม
+              // ถ้ามี path ให้โชว์รูป ถ้าไม่มีโชว์ icon เดิม
               child: widget.imagePath != null
                   ? Image.file(File(widget.imagePath!), fit: BoxFit.cover)
                   : Center(
@@ -144,10 +142,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
                   color: Colors.white,
-                  border: Border.all(
-                    color: const Color(0xFFFFD700), // ขอบสีเหลือง
-                    width: 3,
-                  ),
+                  border: Border.all(color: const Color(0xFFFFD700), width: 3),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.1),
@@ -178,32 +173,27 @@ class _ResultScreenState extends State<ResultScreen> {
 
             const SizedBox(height: 16),
 
-            // ปุ่มเล่นเสียง (เชื่อม Botnoi Voice API ภายหลัง)
+            // ปุ่มเล่นเสียง
             SizedBox(
               height: 250,
               child: Row(
                 children: [
-                  // --- ปุ่มซ้าย: ถ่ายใหม่ (กลับไปหน้ากล้อง) ---
+                  //  ปุ่มซ้าย ถ่ายใหม่ กลับไปหน้ากล้อง
                   Expanded(
                     flex: 1,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300], // ใช้พื้นขาว
-                        foregroundColor: Colors.black, // ไอคอน/ตัวหนังสือดำ
+                        backgroundColor: Colors.grey[300],
+                        foregroundColor: Colors.black,
                         elevation: 0,
-                        // side: const BorderSide(
-                        //   color: Colors.black, // เพิ่มขอบดำหนาๆ ให้เห็นชัด
-                        //   width: 2,
-                        // ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),
-                        // ให้ปุ่มยืดเต็มพื้นที่แนวตั้งของ SizedBox
                         alignment: Alignment.center,
                       ),
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        widget.onRetake?.call(); // เรียกผ่าน widget.
+                        widget.onRetake?.call();
                       },
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -230,8 +220,7 @@ class _ResultScreenState extends State<ResultScreen> {
                     ),
                   ),
 
-                  const SizedBox(width: 16), // เว้นระยะห่างระหว่างปุ่ม
-                  // --- ปุ่มขวา: เล่นเสียง (ปุ่มหลัก สีเหลือง) ---
+                  const SizedBox(width: 16),
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
