@@ -19,24 +19,6 @@ class CameraOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // เปลี่ยนเป็นข้อความบอกสถานะด้านล่างแทน หรือปล่อยโล่ง
-        Align(
-          alignment: Alignment.center,
-          child: Text(
-            "ส่องกล้องไปทั่วๆ เพื่อค้นหา",
-            style: TextStyle(
-              color: const Color.fromARGB(
-                255,
-                255,
-                255,
-                255,
-              ).withValues(alpha: 0.8),
-              fontSize: 18,
-              shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-            ),
-          ),
-        ),
-
         // ปุ่ม Flash
         Positioned(
           top: MediaQuery.of(context).padding.top + 10,

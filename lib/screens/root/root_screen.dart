@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -17,9 +18,19 @@ class RootScreen extends StatefulWidget {
 class _RootScreenState extends State<RootScreen> {
   int _index = 0; // เริ่มต้นที่หน้ากล้อง (Index 1)
 
+  // ตัวแปรสำหรับ Logic Double Tap
+  int _lastTappedIndex = -1;
+  DateTime? _lastTapTime;
+  final AudioPlayer _navPlayer =
+      AudioPlayer(); // สร้าง Player แยกสำหรับเสียง UI โดยเฉพาะ
   String? _imagePath;
 
   @override
+  void dispose() {
+    _navPlayer.dispose();
+    super.dispose();
+  }
+
   Widget build(BuildContext context) {
     final screens = [
       // Index 0: หน้า Intro
@@ -62,10 +73,7 @@ class _RootScreenState extends State<RootScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
-          onTap: (i) {
-            HapticFeedback.vibrate(); // สั่นตอนกดปุ่ม
-            setState(() => _index = i);
-          },
+          onTap: _handleNavTap, // เปลี่ยนไปใช้ฟังก์ชันที่เราเขียนใหม่
           backgroundColor: Colors.white,
           type: BottomNavigationBarType.fixed, // ป้องกันปุ่มเด้งไปมา
           elevation: 0, // เอาเงาออก
@@ -78,8 +86,7 @@ class _RootScreenState extends State<RootScreen> {
             _buildNavItem(
               index: 0,
               label: 'วิธีใช้',
-              iconData:
-                  Icons.info_outline_rounded, // ใช้ Icon เพราะไม่มีไฟล์ svg
+              assetPath: 'assets/icons/information.svg',
             ),
             _buildNavItem(
               index: 1,
@@ -95,6 +102,42 @@ class _RootScreenState extends State<RootScreen> {
         ),
       ),
     );
+  }
+
+  // ฟังก์ชัน Double Tap Logic
+  void _handleNavTap(int index) async {
+    final now = DateTime.now();
+
+    // เช็คว่าเป็น "การกดซ้ำที่ปุ่มเดิม" ภายในเวลา 1.5 วินาที หรือไม่?
+    bool isDoubleTap =
+        _lastTappedIndex == index &&
+        _lastTapTime != null &&
+        now.difference(_lastTapTime!).inMilliseconds < 1500;
+
+    if (isDoubleTap) {
+      //เปลี่ยนหน้าจริง
+      HapticFeedback.heavyImpact();
+      setState(() => _index = index);
+      _lastTappedIndex = -1; // รีเซ็ต
+    } else {
+      // เล่นเสียงบอกชื่อปุ่ม
+      _lastTappedIndex = index;
+      _lastTapTime = now;
+
+      HapticFeedback.heavyImpact();
+      await _navPlayer.stop(); // ตัดเสียงเก่าทิ้งก่อน
+
+      String soundFile = '';
+      if (index == 1) {
+        soundFile = 'audio/camera_page.mp3';
+      } else if (index == 2) {
+        soundFile = 'audio/results_page.mp3';
+      }
+
+      if (soundFile.isNotEmpty) {
+        await _navPlayer.play(AssetSource(soundFile));
+      }
+    }
   }
 
   // เพิ่มฟังก์ชันใหม่ตรงนี้ (ก่อนปิดปีกกา Class)

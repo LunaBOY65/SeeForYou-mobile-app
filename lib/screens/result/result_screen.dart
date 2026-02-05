@@ -4,6 +4,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:http/http.dart' as http;
 import 'package:seeforyou_app/services/api_service.dart';
 
 class ResultScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _ResultScreenState extends State<ResultScreen> {
   bool _isLoading = true;
   String _resultText = "กำลังวิเคราะห์ภาพ... กรุณารอสักครู่";
   final AudioPlayer _audioPlayer = AudioPlayer();
-  String? _audioUrl;
+  String? _localAudioPath; // เปลี่ยนจากเก็บ URL เป็นเก็บ Path ไฟล์ในเครื่องแทน
 
   @override
   void initState() {
@@ -37,15 +38,17 @@ class _ResultScreenState extends State<ResultScreen> {
 
   // ฟังก์ชันสั่งเล่นเสียง
   Future<void> _playAudio() async {
-    if (_audioUrl != null && _audioUrl!.isNotEmpty) {
+    // เล่นจากไฟล์ในเครื่อง (ปลอดภัย 100% ไม่ยิง Server ซ้ำ)
+    if (_localAudioPath != null) {
       try {
-        await _audioPlayer.stop(); // หยุดเสียงเก่าก่อน (ถ้ามี)
-        await _audioPlayer.play(UrlSource(_audioUrl!)); // เล่นจาก URL
+        await _audioPlayer.stop();
+        // ใช้ DeviceFileSource แทน UrlSource
+        await _audioPlayer.play(DeviceFileSource(_localAudioPath!));
       } catch (e) {
-        debugPrint("Error playing audio: $e");
+        debugPrint("Error playing local audio: $e");
       }
     } else {
-      debugPrint("No audio URL found");
+      debugPrint("Audio file not ready yet");
     }
   }
 
@@ -59,21 +62,44 @@ class _ResultScreenState extends State<ResultScreen> {
       return;
     }
 
+    // เล่นเสียงพูด "กำลังประมวลผล"
+    await _audioPlayer.play(AssetSource('audio/in_progress.mp3'));
+
     try {
       final imageFile = File(widget.imagePath!);
+
+      // ยิง API จริงทันที (ไม่ต้องรอ 5 วิแล้ว)
       final response = await ApiService.uploadImage(imageFile);
 
+      // เช็คผลลัพธ์
       if (response.statusCode == 200) {
         // แปลงข้อมูล JSON ที่ได้จาก Python Server
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final message = data['message'] ?? "ไม่สามารถอ่านค่าได้";
         final audioUrl = data['audio_url'];
 
+        // --- เพิ่ม Logic: โหลดไฟล์เสียงเก็บลงเครื่องทันที ---
+        String? localPath;
+        if (audioUrl != null) {
+          try {
+            // 1. โหลดไฟล์
+            final audioData = await http.get(Uri.parse(audioUrl));
+            // 2. หาที่เก็บชั่วคราว (ใช้ Directory.systemTemp ไม่ต้องลง lib เพิ่ม)
+            final tempDir = Directory.systemTemp;
+            final tempFile = File('${tempDir.path}/tts_result.mp3');
+            // 3. เขียนไฟล์ลงเครื่อง
+            await tempFile.writeAsBytes(audioData.bodyBytes);
+            localPath = tempFile.path;
+          } catch (e) {
+            debugPrint("Error downloading audio: $e");
+          }
+        }
+
         if (mounted) {
           setState(() {
             _isLoading = false;
             _resultText = message;
-            _audioUrl = audioUrl;
+            _localAudioPath = localPath; // เก็บ Path ในเครื่องแทน URL
           });
 
           // เล่นเสียงอัตโนมัติหลังวิเคราะห์เสร็จ
@@ -82,6 +108,7 @@ class _ResultScreenState extends State<ResultScreen> {
       } else {
         if (mounted) {
           setState(() {
+            // แสดงข้อความ Error ตามจริง หรือบอกว่าเชื่อมต่อไม่ได้
             _isLoading = false;
             _resultText =
                 "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Code: ${response.statusCode})";

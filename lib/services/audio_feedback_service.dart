@@ -24,7 +24,7 @@ class AudioFeedbackService {
       await _audioPlayer.play(AssetSource('audio/camera_is_ready.mp3'));
       await _audioPlayer.onPlayerComplete.first;
 
-      await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 2));
       if (_isDisposed) return;
 
       // รอบที่ 2
