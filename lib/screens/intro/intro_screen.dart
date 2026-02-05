@@ -41,12 +41,23 @@ class _IntroScreenState extends State<IntroScreen> {
         return; // ถ้ากำลังฟังคำอธิบายหลักอยู่ ไม่ต้องเล่นอันนี้
       }
 
-      await _hintPlayer.setReleaseMode(ReleaseMode.loop); // ตั้งโหมดวนลูป
+      await _hintPlayer.setReleaseMode(ReleaseMode.stop); // ตั้งโหมดวนลูป
 
-      // เช็คว่าหน้าจอยังอยู่ไหม ถ้าถูกปิดไปแล้ว (dispose) ไม่ต้องเล่นต่อ
-      if (!mounted) return;
+      // วนลูปเล่นแค่ 2 ครั้งก็พอ เพื่อไม่ให้รำคาญ
+      for (int i = 0; i < 2; i++) {
+        // เช็คเงื่อนไขก่อนเล่นทุกรอบ (เผื่อมีการกดค้างแทรก หรือปิดหน้าไปแล้ว)
+        if (!mounted || _isPlayingInstruction) return;
 
-      await _hintPlayer.play(AssetSource('audio/hint.mp3'));
+        await _hintPlayer.play(AssetSource('audio/hint.mp3'));
+
+        // รอให้เล่นจบ
+        await _hintPlayer.onPlayerComplete.first;
+
+        // เว้นจังหวะสัก 3 วินาที ก่อนเล่นรอบที่ 2 (ถ้ายังไม่ครบ)
+        if (i == 0) {
+          await Future.delayed(const Duration(seconds: 3));
+        }
+      }
     } catch (e) {
       debugPrint("Hint Audio Error: $e");
     }
@@ -180,7 +191,7 @@ class _IntroScreenState extends State<IntroScreen> {
                   Opacity(
                     opacity: 0.5,
                     child: const Text(
-                      "(ปัดซ้ายเพื่อเริ่ม)",
+                      "(ปัดซ้ายเพื่อเริ่มใช้งาน)",
                       style: TextStyle(
                         color: Colors.black,
                         fontSize: 24,

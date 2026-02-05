@@ -23,7 +23,7 @@ class ScanLogicController {
     stopLoop();
 
     debugPrint(">>> START SCAN LOOP");
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
+    _scanTimer = Timer.periodic(const Duration(milliseconds: 1000), (_) async {
       await _processScan(controller);
     });
   }
