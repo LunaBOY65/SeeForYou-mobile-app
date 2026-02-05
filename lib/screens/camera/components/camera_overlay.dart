@@ -25,7 +25,12 @@ class CameraOverlay extends StatelessWidget {
           child: Text(
             "ส่องกล้องไปทั่วๆ เพื่อค้นหา",
             style: TextStyle(
-              color: Colors.black.withValues(alpha: 0.8),
+              color: const Color.fromARGB(
+                255,
+                255,
+                255,
+                255,
+              ).withValues(alpha: 0.8),
               fontSize: 18,
               shadows: [Shadow(blurRadius: 4, color: Colors.black)],
             ),

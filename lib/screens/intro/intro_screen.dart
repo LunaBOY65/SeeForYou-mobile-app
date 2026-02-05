@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/svg.dart';
 
 class IntroScreen extends StatefulWidget {
   final VoidCallback? onNext;
@@ -41,6 +42,10 @@ class _IntroScreenState extends State<IntroScreen> {
       }
 
       await _hintPlayer.setReleaseMode(ReleaseMode.loop); // ตั้งโหมดวนลูป
+
+      // เช็คว่าหน้าจอยังอยู่ไหม ถ้าถูกปิดไปแล้ว (dispose) ไม่ต้องเล่นต่อ
+      if (!mounted) return;
+
       await _hintPlayer.play(AssetSource('audio/hint.mp3'));
     } catch (e) {
       debugPrint("Hint Audio Error: $e");
@@ -52,14 +57,16 @@ class _IntroScreenState extends State<IntroScreen> {
     _hintPlayer.stop();
     _secondsHeld = 0;
 
-    _holdTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _holdTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _secondsHeld++;
 
       // สั่นแรง 2 จังหวะ (Tick Tick) เพื่อบอกว่าผ่านไป 1 วิแล้ว
+      // HapticFeedback.heavyImpact();
+      // Future.delayed(const Duration(milliseconds: 200), () {
+      //   if (mounted) HapticFeedback.heavyImpact();
+      // });
+
       HapticFeedback.heavyImpact();
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (mounted) HapticFeedback.heavyImpact();
-      });
 
       if (_secondsHeld >= 5) {
         // เมื่อครบ 5 วิ
@@ -93,6 +100,7 @@ class _IntroScreenState extends State<IntroScreen> {
   }
 
   void _triggerNextPage() {
+    _hintPlayer.stop();
     _audioPlayer.stop(); // หยุดเสียง
     // เรียกใช้ callback ที่ส่งมาจาก RootScreen เพื่อเปลี่ยน index
     widget.onNext?.call();
@@ -130,7 +138,7 @@ class _IntroScreenState extends State<IntroScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
+                    color: Colors.black26,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -139,10 +147,14 @@ class _IntroScreenState extends State<IntroScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.touch_app_rounded,
-                    size: 100,
-                    color: Colors.black.withValues(alpha: 0.8),
+                  SvgPicture.asset(
+                    'assets/icons/one-finger-tap.svg', // อย่าลืมวางไฟล์ไว้ใน assets/icons/ และประกาศใน pubspec.yaml
+                    width: 100,
+                    height: 100,
+                    colorFilter: const ColorFilter.mode(
+                      Colors.black87,
+                      BlendMode.srcIn,
+                    ),
                   ),
                   const SizedBox(height: 30),
                   const Text(

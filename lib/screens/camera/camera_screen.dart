@@ -161,6 +161,14 @@ class _CameraScreenState extends State<CameraScreen> {
                   onToggleFlash: () {
                     setState(() {
                       _isFlashOn = !_isFlashOn;
+
+                      // เช็คสถานะใหม่แล้วสั่งเล่นเสียง
+                      if (_isFlashOn) {
+                        _feedbackService.playFlashOn();
+                      } else {
+                        _feedbackService.playFlashOff();
+                      }
+
                       _controller!.setFlashMode(
                         _isFlashOn ? FlashMode.torch : FlashMode.off,
                       );

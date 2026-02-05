@@ -21,14 +21,14 @@ class AudioFeedbackService {
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
 
       // รอบที่ 1
-      await _audioPlayer.play(AssetSource('audio/intro.mp3'));
+      await _audioPlayer.play(AssetSource('audio/camera_is_ready.mp3'));
       await _audioPlayer.onPlayerComplete.first;
 
       await Future.delayed(const Duration(seconds: 3));
       if (_isDisposed) return;
 
       // รอบที่ 2
-      await _audioPlayer.play(AssetSource('audio/intro.mp3'));
+      await _audioPlayer.play(AssetSource('audio/camera_is_ready.mp3'));
     } catch (e) {
       debugPrint("Error playing intro audio: $e");
     }
@@ -76,6 +76,12 @@ class AudioFeedbackService {
     // เช็คเวลาไม่ให้เตือนถี่เกินไป (ทุก 4 วิ)
     if (_lastRotateWarning == null ||
         now.difference(_lastRotateWarning!).inSeconds >= 4) {
+      // สั่นเตือน
+      for (int i = 0; i < 3; i++) {
+        if (_isDisposed) return;
+        HapticFeedback.heavyImpact();
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
       // ถ้ามีเสียงอื่นเล่นอยู่ (เช่น Siren) อย่าเพิ่งแทรก
       if (_audioPlayer.state != PlayerState.playing) {
         debugPrint(">>> WRONG ANGLE: Playing warning sound");
@@ -83,6 +89,20 @@ class AudioFeedbackService {
       }
       _lastRotateWarning = now;
     }
+  }
+
+  /// เล่นเสียงเมื่อเปิดไฟฉาย
+  Future<void> playFlashOn() async {
+    if (_isDisposed) return;
+    await _audioPlayer.stop(); // ตัดเสียงเก่า (ถ้ามี) เพื่อให้เสียง UI ชัดเจน
+    await _audioPlayer.play(AssetSource('audio/flashlight_on.mp3'));
+  }
+
+  /// เล่นเสียงเมื่อปิดไฟฉาย
+  Future<void> playFlashOff() async {
+    if (_isDisposed) return;
+    await _audioPlayer.stop();
+    await _audioPlayer.play(AssetSource('audio/flashlight_off.mp3'));
   }
 
   /// คืนค่า Resource
