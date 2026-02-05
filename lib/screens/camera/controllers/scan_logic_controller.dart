@@ -19,11 +19,11 @@ class ScanLogicController {
 
   /// เริ่มต้น Loop การสแกนอัตโนมัติ
   void startLoop(CameraController controller) {
-    // ป้องกันการเปิด Loop ซ้อนกัน
+    // ป้องกันกามมทม าทมฟๆนรเปิด Loop ซ้อนกัน
     stopLoop();
 
     debugPrint(">>> START SCAN LOOP");
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
+    _scanTimer = Timer.periodic(const Duration(milliseconds: 500), (_) async {
       await _processScan(controller);
     });
   }

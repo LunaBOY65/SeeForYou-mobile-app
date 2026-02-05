@@ -31,7 +31,7 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
-  bool _isFlashOn = true; // สถานะไฟฉาย
+  bool _isFlashOn = false; // สถานะไฟฉาย
   double _maxZoom = 1.0;
 
   // Logic & Services
@@ -51,7 +51,7 @@ class _CameraScreenState extends State<CameraScreen> {
     final firstCamera = cameras.first;
     _controller = CameraController(
       firstCamera,
-      ResolutionPreset.medium,
+      ResolutionPreset.high,
       enableAudio: false,
       //  กำหนด Format ให้เหมาะกับ ML Kit
       imageFormatGroup: Platform.isAndroid
@@ -62,26 +62,27 @@ class _CameraScreenState extends State<CameraScreen> {
       _initializeControllerFuture = _controller!.initialize();
       await _initializeControllerFuture; // รอให้กล้องเปิดเสร็จก่อน
 
-      // การ Zoom เข้าเล็กน้อย (1.5x) ช่วยให้อ่าน text ขนาดเล็กได้ดีขึ้น
+      // ปรับ Zoom (ถ้าอยากปรับ)
       _maxZoom = await _controller!.getMaxZoomLevel();
-      double targetZoom = 1.5;
+      double targetZoom = 1.0;
       if (targetZoom > _maxZoom) {
         targetZoom = _maxZoom; // กันค่าเกิน limit เครื่อง
       }
 
       await _controller!.setZoomLevel(targetZoom);
 
-      // บังคับเปิดไฟฉาย เสมอ
-      // แสงสว่างจ้าช่วยลด Noise และเพิ่ม Shutter Speed ทำให้ภาพไม่เบลอเมื่อมือสั่น
+      // ตั้งค่าเริ่มต้นให้ปิดไฟฉาย
       try {
-        await _controller!.setFlashMode(FlashMode.torch);
-        _isFlashOn = true;
+        await _controller!.setFlashMode(FlashMode.off);
+        _isFlashOn = false;
       } catch (e) {
-        debugPrint("Device might not support Torch: $e");
+        debugPrint("Error setting flash mode: $e");
       }
 
       // ตั้งเป็น Auto Focus เพื่อให้ปรับระยะชัดได้เองตลอดเวลา
       await _controller?.setFocusMode(FocusMode.auto);
+
+      await _controller?.setExposureMode(ExposureMode.auto);
 
       // เริ่มระบบสแกนอัตโนมัติ (Snapshot Loop)
       if (_controller != null) {
@@ -93,12 +94,16 @@ class _CameraScreenState extends State<CameraScreen> {
     } catch (e) {
       debugPrint("Error initializing camera: $e");
     }
-    if (mounted) setState(() {});
+    // เช็ค mounted อีกครั้งเผื่อ user กด back ไปแล้วระหว่าง init
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   void dispose() {
     // คืน Resource ทุกอย่างเมื่อปิดหน้านี้
+    _scanController.stopLoop();
     _scanController.dispose();
     _feedbackService.dispose();
     _controller?.dispose();

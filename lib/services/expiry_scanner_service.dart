@@ -248,10 +248,6 @@ class ExpiryScannerService {
       'BEST',
       'BEFORE',
       'DATE',
-      'ผลิต',
-      'หมดอายุ',
-      'บริโภค',
-      'ควรบริโภค',
       'Mfg',
       'NFG',
       'HFG',
@@ -262,7 +258,6 @@ class ExpiryScannerService {
       '88E',
       'B8E',
       'B B E',
-      '0ATE',
       'D A T E',
     ];
     final keywordStr = keywords.join('|');
@@ -289,7 +284,6 @@ class ExpiryScannerService {
         if (isValidDate(d, m, y)) return "$d/$m/$y";
       }
     }
-
 
     // -----------------------------------------
     // Part 4: STRATEGY 3 - Fallback กรณีตัวเลขล้วน
