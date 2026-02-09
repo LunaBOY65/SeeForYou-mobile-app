@@ -15,7 +15,7 @@ class AudioFeedbackService {
   Future<void> playIntro() async {
     try {
       if (_isDisposed) return;
-      await Future.delayed(const Duration(milliseconds: 1500));
+      await Future.delayed(const Duration(milliseconds: 1300));
       if (_isDisposed) return;
 
       await _audioPlayer.setReleaseMode(ReleaseMode.stop);
@@ -59,11 +59,6 @@ class AudioFeedbackService {
         if (_isDisposed) return;
         HapticFeedback.heavyImpact();
         await Future.delayed(const Duration(milliseconds: 150));
-      }
-
-      // เล่นเสียง Siren
-      if (!_isDisposed) {
-        await _audioPlayer.play(AssetSource('audio/Siren.mp3'));
       }
 
       _lastVibrate = now;
