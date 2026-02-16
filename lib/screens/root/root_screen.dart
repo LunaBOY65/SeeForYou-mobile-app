@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:seeforyou_app/screens/intro/intro_screen.dart';
-
-// screens
 import '../camera/camera_screen.dart';
 import '../result/result_screen.dart';
 
@@ -16,48 +14,57 @@ class RootScreen extends StatefulWidget {
 }
 
 class _RootScreenState extends State<RootScreen> {
-  int _index = 0; // เริ่มต้นที่หน้ากล้อง (Index 1)
+  // ตัวแปรควบคุมหน้าจอ 0 = หน้าแนะนำวิธีใช้, 1 = หน้ากล้อง, 2 = หน้าผลลัพธ์
+  int _index = 0;
 
-  // ตัวแปรสำหรับ Logic Double Tap
+  // ตัวแปรสำหรับจัดการ 2 จังหวะการกดปุ่มใน BottomNavigationBar
+  // เก็บเลข index ปุ่มล่าสุดที่เพิ่งโดนแตะ (-1 คือยังไม่มีการแตะปุ่มใดๆ)
+  // เก็บเวลาล่าสุดที่แตะปุ่ม
+  // เล่นเสียงสำหรับอ่านชื่อเมนู
+  // เก็บที่อยู่ไฟล์รูปภาพที่เพิ่งถ่าย เพื่อส่งข้ามจากหน้าอื่น
   int _lastTappedIndex = -1;
   DateTime? _lastTapTime;
-  final AudioPlayer _navPlayer =
-      AudioPlayer(); // สร้าง Player แยกสำหรับเสียง UI โดยเฉพาะ
+  final AudioPlayer _navPlayer = AudioPlayer();
   String? _imagePath;
 
   @override
   void dispose() {
+    // คืนทรัพยากร AudioPlayer เมื่อหน้าจอถูกทิ้ง
     _navPlayer.dispose();
     super.dispose();
   }
 
+  @override
   Widget build(BuildContext context) {
+    // เตรียมหน้าจอทั้ง 3 หน้า ไว้ในตัวแปรแบบ List
     final screens = [
-      // Index 0: หน้า Intro
+      // หน้า 0
       IntroScreen(
         onNext: () {
-          setState(() => _index = 1); // สั่งเปลี่ยนไปหน้ากล้อง
+          // เมื่อผู้ใช้ปัดซ้ายหรือกดผ่านหน้าแนะนำ ให้เปลี่ยนไปหน้ากล้อง (หน้าที่ 1)
+          setState(() => _index = 1);
         },
       ),
 
+      // หน้า 1
       CameraScreen(
-        onCapture: () {
-          // ถ่ายเสร็จโยนไปหน้า Result
-          setState(() => _index = 2);
-        },
         onImageSelected: (path) {
+          // เมื่อถ่ายรูปเสร็จ หรือเลือกรูปจากแกลเลอรีได้แล้ว
           setState(() {
-            _imagePath = path; // เก็บ Path รูป
-            _index = 2; // กระโดดไปหน้า Result
+            // นำ path ของรูปมาเก็บไว้ แล้วเปลี่ยนไปหน้าผลลัพธ์ (หน้าที่ 2)
+            _imagePath = path;
+            _index = 2;
           });
         },
       ),
+
+      // หน้า 2
       ResultScreen(
-        //ส่ง Path รูปไปให้หน้า Result (เดี๋ยวเราต้องไปแก้ ResultScreen ให้รับค่านี้)
+        // ส่งที่อยู่ไฟล์รูปภาพที่ได้จากหน้ากล้อง ไปให้หน้าผลลัพธ์ใช้ต่อ
         imagePath: _imagePath,
         onRetake: () {
-          // จากหน้าผลลัพธ์ -> กลับมาหน้ากล้อง (index 1)
           setState(() {
+            // เมื่อผู้ใช้กดปุ่มถ่ายใหม่ให้ล้างรูปภาพเดิม แล้วกลับไปหน้ากล้อง (หน้าที่ 1)
             _imagePath = null;
             _index = 1;
           });
@@ -66,23 +73,25 @@ class _RootScreenState extends State<RootScreen> {
     ];
 
     return Scaffold(
+      // เลือกแสดงหน้าจอตามค่า _index (0, 1 หรือ 2)
       body: screens[_index],
+
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _index,
-          onTap: _handleNavTap, // เปลี่ยนไปใช้ฟังก์ชันที่เราเขียนใหม่
+          // เมื่อมีการแตะปุ่มเมนูด้านล่าง ให้ไปเรียกใช้ฟังก์ชัน Double Tap แทนการเปลี่ยนหน้าทันที
+          onTap: _handleNavTap,
           backgroundColor: Colors.white,
-          type: BottomNavigationBarType.fixed, // ป้องกันปุ่มเด้งไปมา
-          elevation: 0, // เอาเงาออก
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
           selectedFontSize: 17,
           unselectedFontSize: 17,
           selectedItemColor: Colors.black,
           unselectedItemColor: Colors.grey,
           items: [
-            // เพิ่มปุ่มที่ 1: วิธีใช้
             _buildNavItem(
               index: 0,
               label: 'วิธีใช้',
@@ -104,71 +113,70 @@ class _RootScreenState extends State<RootScreen> {
     );
   }
 
-  // ฟังก์ชัน Double Tap Logic
+  /// ฟังก์ชันสำหรับจัดการปุ่มเมนูด้านล่างแบบ 2 จังหวะ
   void _handleNavTap(int index) async {
     final now = DateTime.now();
 
-    // เช็คว่าเป็น "การกดซ้ำที่ปุ่มเดิม" ภายในเวลา 1.5 วินาที หรือไม่?
+    // เช็คเงื่อนไขว่าเป็นการกดเบิ้ล (แตะปุ่มเดิมซ้ำในเวลาไม่เกิน 1.5 วินาที) หรือไม่
     bool isDoubleTap =
         _lastTappedIndex == index &&
         _lastTapTime != null &&
         now.difference(_lastTapTime!).inMilliseconds < 1500;
+    HapticFeedback.heavyImpact();
 
     if (isDoubleTap) {
-      //เปลี่ยนหน้าจริง
-      HapticFeedback.heavyImpact();
-      setState(() => _index = index);
-      _lastTappedIndex = -1; // รีเซ็ต
+      // กรณีกดเบิ้ลเป็นการกดยืนยัน
+      setState(() {
+        // สั่งเปลี่ยนไปหน้าที่ผู้ใช้เลือก
+        _index = index;
+
+        // ถ้ากดเปลี่ยนไปหน้าที่ไม่ใช่่หน้าผลลัพธ์ เช่น กลับไปหน้าวิธีใช้ หรือหน้ากล้อง
+        // ให้ล้างความจำรูปภาพเดิมทิ้งไปเลย
+        if (index != 2) {
+          _imagePath = null;
+        }
+      });
+      // ล้างค่าปุ่มที่จำไว้ทิ้งไป เพื่อเตรียมรับการกดรอบใหม่
+      _lastTappedIndex = -1;
     } else {
-      // เล่นเสียงบอกชื่อปุ่ม
+      // กรณีเป็นการกดครั้งแรก หรือกดเปลี่ยนปุ่ม
+      // จำหมายปุ่มและเวลาที่กดเอาไว้
       _lastTappedIndex = index;
       _lastTapTime = now;
 
-      HapticFeedback.heavyImpact();
-      await _navPlayer.stop(); // ตัดเสียงเก่าทิ้งก่อน
-
+      // หยุดเสียงเดิมที่อาจจะพูดค้างอยู่ แล้วเช็คว่าจะให้เล่นเสียงไหน
+      await _navPlayer.stop();
       String soundFile = '';
-      if (index == 1) {
-        soundFile = 'audio/camera_page.mp3';
-      } else if (index == 2) {
-        soundFile = 'audio/results_page.mp3';
-      }
-
+      if (index == 1) soundFile = 'audio/camera_page.mp3';
+      if (index == 2) soundFile = 'audio/results_page.mp3';
       if (soundFile.isNotEmpty) {
         await _navPlayer.play(AssetSource(soundFile));
       }
     }
   }
 
-  // เพิ่มฟังก์ชันใหม่ตรงนี้ (ก่อนปิดปีกกา Class)
+  /// สำหรับวาดปุ่มเมนูแต่ละปุ่ม
+  /// ถ้าปุ่มไหนถูกเลือกอยู่ (isSelected) จะสร้างวงกลมสีเหลืองมาเป็นพื้นหลังให้
   BottomNavigationBarItem _buildNavItem({
     required int index,
     required String label,
-    String? assetPath,
-    IconData? iconData,
+    required String assetPath,
   }) {
+    // เช็คว่าปุ่มที่กำลังวาดอยู่นี้ ตรงกับหน้าจอที่กำลังเปิดอยู่ไหม
     final isSelected = _index == index;
     const double circleSize = 48;
     const double iconSize = 27;
 
-    Widget iconWidget;
-    if (assetPath != null) {
-      iconWidget = SvgPicture.asset(
-        assetPath,
-        width: iconSize,
-        height: iconSize,
-        colorFilter: ColorFilter.mode(
-          isSelected ? Colors.black : Colors.grey,
-          BlendMode.srcIn,
-        ),
-      );
-    } else {
-      iconWidget = Icon(
-        iconData,
-        size: iconSize,
-        color: isSelected ? Colors.black : Colors.grey,
-      );
-    }
+    // ตัวไอคอน ถ้าถูกเลือกจะเป็นสีดำ ถ้าไม่ถูกเลือกจะเป็นสีเทา
+    Widget iconWidget = SvgPicture.asset(
+      assetPath,
+      width: iconSize,
+      height: iconSize,
+      colorFilter: ColorFilter.mode(
+        isSelected ? Colors.black : Colors.grey,
+        BlendMode.srcIn,
+      ),
+    );
 
     return BottomNavigationBarItem(
       icon: Container(
