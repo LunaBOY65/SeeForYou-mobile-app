@@ -36,7 +36,7 @@ class ScanLogicController {
 
     debugPrint(">>> START SCAN LOOP");
     // ตั้งเวลาให้ทำงานทุกๆ 1 วินาที (ปรับเวลาได้ตรงนี้นะ)
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) async {
+    _scanTimer = Timer.periodic(const Duration(milliseconds: 1300), (_) async {
       await _processScan(controller);
     });
   }

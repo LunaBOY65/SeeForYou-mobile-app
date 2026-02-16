@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -11,7 +12,7 @@ class CameraOverlay extends StatefulWidget {
   // รับคำสั่งจากหน้าแม่ ว่าถ้าผู้ใช้กดปุ่มแกลเลอรี ให้ไปเรียกฟังก์ชันเปิดแกลเลอรีที่หน้าแม่นะ
   final bool isFlashOn;
   final VoidCallback onToggleFlash;
-  final VoidCallback onGalleryTap;
+  final Future<void> Function() onGalleryTap;
 
   // Constructor กฎบังคับว่าถ้าหน้าแม่เรียกใช้ CameraOverlay
   // ต้องส่งข้อมูล 3 ตัวข้างบนมาให้ครบถ้วนนะ ไม่งั้นจะไม่ยอมให้ทำงาน
@@ -29,10 +30,12 @@ class CameraOverlay extends StatefulWidget {
 
 class _CameraOverlayState extends State<CameraOverlay> {
   // ตัวแปรจำเวลา ที่ผู้ใช้แตะปุ่มครั้งล่าสุด เอาไว้คำนวณการกดเบิ้ล
+  // สร้างแปรตัวเล่นเสียงหน้านี้ด้วยเลย
   DateTime? _lastTapTime;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   // ฟังก์ชันจัดการการกดเบิ้ล 2 ครั้งเพื่อเปิดแกลเลอรี
-  void _handleGalleryTap() {
+  Future<void> _handleGalleryTap() async {
     // ดึงเวลาปัจจุบันตอนที่นิ้วแตะปุ่ม
     final now = DateTime.now();
 
@@ -55,15 +58,32 @@ class _CameraOverlayState extends State<CameraOverlay> {
     //3. สั่นแรง 1 ที ทุกครั้งที่นิ้วแตะโดนปุ่ม ไม่ว่าจะกดครั้งแรก หรือกดเบิ้ลก็ตาม
     HapticFeedback.heavyImpact();
 
-    //4. ตัดสินว่าจะทำอะไรต่อ
+    //4. ตัดสินว่าจะทำอะไร
     if (isDoubleTap) {
-      // ถ้าคือการกดเบิ้ล -> เปิดแกลเลอรี และล้างเวลาทิ้งเพื่อเริ่มนับรอบใหม่
-      widget.onGalleryTap();
+      // ล้างความจำเวลาทิ้งเตรียมสำหรับการกดรอบใหม่
       _lastTapTime = null;
+
+      // หยุดเสียงบอกชื่อปุ่ม
+      // สั่งเปิดแกลเลอรีรอจนกว่าผู้ใช้จะเลือกรูปหรือปิด
+      // ทันทีที่แกลเลอรีปิดเล่นเสียง
+      await _audioPlayer.stop();
+      await widget.onGalleryTap();
+      await _audioPlayer.play(AssetSource('audio/closeGallery.mp3'));
     } else {
-      // ถ้าไม่ใช่ หรือเพิ่งกดครั้งแรก -> จำเวลาของรอบนี้เอาไว้รอกดครั้งหน้า
+      // ถ้าไม่ใช่ หรือเพิ่งกดครั้งแรก
+      // จำเวลาของรอบนี้เอาไว้รอกดครั้งหน้า
+      // หยุดเสียงที่อาจจะค้าง และเล่นเสียง
       _lastTapTime = now;
+      await _audioPlayer.stop();
+      await _audioPlayer.play(AssetSource('audio/openGallery.mp3'));
     }
+  }
+
+  // คืนทรัพยากรเมื่อหน้านี้ถูกปิด
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 
   @override
@@ -87,7 +107,7 @@ class _CameraOverlayState extends State<CameraOverlay> {
         // ปุ่ม Gallery
         Positioned(
           bottom: 60,
-          left: 40,
+          right: 40,
           child: GestureDetector(
             onTap: _handleGalleryTap,
             child: Container(
