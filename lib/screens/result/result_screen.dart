@@ -4,111 +4,97 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:http/http.dart' as http;
 import 'package:seeforyou_app/services/api_service.dart';
 
 class ResultScreen extends StatefulWidget {
   final VoidCallback? onRetake;
   final String? imagePath;
-
   const ResultScreen({super.key, this.onRetake, this.imagePath});
 
   @override
+  // สร้าง State ของ ResultScreen เพื่อจัดการกับข้อมูลและการเปลี่ยนแปลงต่างๆ ในหน้านี้
   State<ResultScreen> createState() => _ResultScreenState();
 }
 
 class _ResultScreenState extends State<ResultScreen> {
-  bool _isLoading = true;
-  String _resultText = "กำลังวิเคราะห์ภาพ... กรุณารอสักครู่";
+  // ตัวแปรควบคุมสถานะการโหลดข้อมูล (true = กำลังโหลด, false = โหลดเสร็จแล้ว)
+  bool _isLoading = false;
+
+  // ข้อความผลลัพธ์ (คำอธิบายภาพ) ที่จะนำไปแสดงบนหน้าจอ
+  String _resultText = "";
+
+  // เครื่องเล่นเสียง สำหรับเปิดเสียงแจ้งเตือนและเสียงอ่านคำอธิบายภาพ
   final AudioPlayer _audioPlayer = AudioPlayer();
-  String? _localAudioPath; // เปลี่ยนจากเก็บ URL เป็นเก็บ Path ไฟล์ในเครื่องแทน
+
+  // สำหรับระบบปุ่มกด 2 จังหวะ
+  // เก็บชื่อปุ่ม
+  // เก็บเวลาที่กดครั้งล่าสุด
+  String? _focusedButton;
+  DateTime? _lastTapTime;
+
+  // ลิงก์ไฟล์เสียงผลลัพธ์ที่ได้กลับมาจาก API
+  String? _audioUrl;
 
   @override
   void initState() {
     super.initState();
-    _analyzeImage();
+    if (widget.imagePath != null) {
+      /// ถ้ามีรูปส่งมาจริงๆ ถึงจะค่อยเปลี่ยนป้ายเป็น กำลังยุ่ง
+      _isLoading = true;
+      _analyzeImage();
+    } else {
+      // กรณีเกิดข้อผิดพลาดหรือไม่มีรูปภาพถูกส่งมา ให้แสดงข้อความรอรับภาพ
+      _resultText = "รอรับภาพ...";
+    }
   }
 
-  // ฟังก์ชันสำหรับคืนทรัพยากร
   @override
   void dispose() {
+    // เคลียร์หน่วยความจำเมื่อผู้ใช้ปิดหน้านี้
+    // สำคัญมาก ต้องสั่งหยุดตัวเล่นเสียง เพื่อไม่ให้แอปแอบเล่นเสียงค้างหรือกินแบต
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  // ฟังก์ชันสั่งเล่นเสียง
+  // ฟังก์ชันสำหรับเล่นเสียงอ่านคำอธิบายภาพที่ได้จาก API
   Future<void> _playAudio() async {
-    // เล่นจากไฟล์ในเครื่อง (ปลอดภัย 100% ไม่ยิง Server ซ้ำ)
-    if (_localAudioPath != null) {
+    if (_audioUrl != null) {
       try {
         await _audioPlayer.stop();
-        // ใช้ DeviceFileSource แทน UrlSource
-        await _audioPlayer.play(DeviceFileSource(_localAudioPath!));
-      } catch (e) {
-        debugPrint("Error playing local audio: $e");
-      }
-    } else {
-      debugPrint("Audio file not ready yet");
+        await _audioPlayer.play(UrlSource(_audioUrl!));
+      } catch (_) {}
     }
   }
 
-  // ฟังก์ชันยิง API ของจริง
+  // TODO: ฟังก์ชันส่งรูปภาพอยากแก้ต่อให้มีการจัดการที่ดีขึ้น
+  // ฟังก์ชันส่งรูปภาพขึ้นไปให้เซิร์ฟเวอร์ (API) ประมวลผลและรอรับคำอธิบายกลับมา
   Future<void> _analyzeImage() async {
-    if (widget.imagePath == null) {
-      setState(() {
-        _isLoading = false;
-        _resultText = "ไม่พบไฟล์รูปภาพ กรุณาถ่ายใหม่";
-      });
-      return;
-    }
-
-    // เล่นเสียงพูด "กำลังประมวลผล"
-    await _audioPlayer.play(AssetSource('audio/in_progress.mp3'));
+    // 1. เล่นเสียงบอกผู้ใช้ว่า "กำลังประมวลผล" เพื่อให้รู้ว่าแอปไม่ได้ค้าง
+    _audioPlayer.play(AssetSource('audio/in_progress.mp3'));
 
     try {
       final imageFile = File(widget.imagePath!);
-
-      // ยิง API จริงทันที (ไม่ต้องรอ 5 วิแล้ว)
       final response = await ApiService.uploadImage(imageFile);
 
-      // เช็คผลลัพธ์
+      // 2. ตรวจสอบสถานะการตอบกลับ (Status Code 200 หมายถึงทำงานสำเร็จ)
       if (response.statusCode == 200) {
-        // แปลงข้อมูล JSON ที่ได้จาก Python Server
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         final message = data['message'] ?? "ไม่สามารถอ่านค่าได้";
         final audioUrl = data['audio_url'];
 
-        // --- เพิ่ม Logic: โหลดไฟล์เสียงเก็บลงเครื่องทันที ---
-        String? localPath;
-        if (audioUrl != null) {
-          try {
-            // 1. โหลดไฟล์
-            final audioData = await http.get(Uri.parse(audioUrl));
-            // 2. หาที่เก็บชั่วคราว (ใช้ Directory.systemTemp ไม่ต้องลง lib เพิ่ม)
-            final tempDir = Directory.systemTemp;
-            final tempFile = File('${tempDir.path}/tts_result.mp3');
-            // 3. เขียนไฟล์ลงเครื่อง
-            await tempFile.writeAsBytes(audioData.bodyBytes);
-            localPath = tempFile.path;
-          } catch (e) {
-            debugPrint("Error downloading audio: $e");
-          }
-        }
-
         if (mounted) {
+          // setState คือการสั่งให้หน้าจอรีเฟรชตัวเอง เพื่อแสดงข้อมูลใหม่ที่เราเพิ่งได้มา
           setState(() {
             _isLoading = false;
             _resultText = message;
-            _localAudioPath = localPath; // เก็บ Path ในเครื่องแทน URL
+            _audioUrl = audioUrl;
           });
 
-          // เล่นเสียงอัตโนมัติหลังวิเคราะห์เสร็จ
           _playAudio();
         }
       } else {
         if (mounted) {
           setState(() {
-            // แสดงข้อความ Error ตามจริง หรือบอกว่าเชื่อมต่อไม่ได้
             _isLoading = false;
             _resultText =
                 "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Code: ${response.statusCode})";
@@ -116,12 +102,42 @@ class _ResultScreenState extends State<ResultScreen> {
         }
       }
     } catch (e) {
+      // catch จะทำงานก็ต่อเมื่อเกิดข้อผิดพลาดรุนแรง เช่น เน็ตหลุด หรือ API ล่ม
       if (mounted) {
         setState(() {
           _isLoading = false;
           _resultText = "การเชื่อมต่อขัดข้อง: $e";
         });
       }
+    }
+  }
+
+  // ฟังก์ชันสำหรับจัดการปุ่มกด 2 จังหวะ (เช่น ปุ่มเล่นเสียง หรือปุ่มถ่ายใหม่)
+  Future<void> _handleTwoStepButton(
+    String key,
+    String audioFile,
+    VoidCallback onConfirmed,
+  ) async {
+    final now = DateTime.now();
+
+    // เช็คเงื่อนไขว่าเป็นการกดเบิ้ลไหม
+    bool isDoubleTap =
+        _focusedButton == key &&
+        _lastTapTime != null &&
+        now.difference(_lastTapTime!).inMilliseconds < 1500;
+
+    // สั่งหยุดเสียงเดิมที่อาจจะเล่นค้างอยู่ และสั่งให้สั่นเพื่อตอบสนองการกด
+    await _audioPlayer.stop();
+    HapticFeedback.heavyImpact();
+    if (isDoubleTap) {
+      // ถ้าเป็นการกดเบิ้ลจริง -> ล้างค่าความจำทิ้ง และสั่งให้ปุ่มทำงาน
+      _focusedButton = null;
+      onConfirmed();
+    } else {
+      // ถ้าเป็นการกดครั้งแรก หรืออื่นๆ -> จำปุ่มและเวลาไว้ แล้วเล่นเสียงบอกชื่อปุ่ม
+      _focusedButton = key;
+      _lastTapTime = now;
+      await _audioPlayer.play(AssetSource('audio/$audioFile'));
     }
   }
 
@@ -142,15 +158,15 @@ class _ResultScreenState extends State<ResultScreen> {
                 color: const Color(0xFFF5F5F5),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black12,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              // ถ้ามี path ให้โชว์รูป ถ้าไม่มีโชว์ icon เดิม
               child: widget.imagePath != null
                   ? Image.file(File(widget.imagePath!), fit: BoxFit.cover)
+                  // ถ้าไม่มีรูป (เป็น null) ให้แสดงไอคอนรูปภาพสีเทาแทน
                   : Center(
                       child: Icon(
                         Icons.image_outlined,
@@ -172,21 +188,23 @@ class _ResultScreenState extends State<ResultScreen> {
                   border: Border.all(color: const Color(0xFFFFD700), width: 3),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black12,
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
                   ],
                 ),
                 child: _isLoading
+                    // ถ้า _isLoading เป็น true (กำลังประมวลผล) ให้แสดงหมุนๆ
                     ? const Center(
                         child: CircularProgressIndicator(
                           color: Color(0xFFFFD700),
                         ),
                       )
+                    // ถ้าโหลดเสร็จแล้ว ให้แสดงข้อความคำอธิบาย
                     : SingleChildScrollView(
                         child: Text(
-                          _resultText,
+                          _resultText.isEmpty ? "ไม่พบข้อมูล" : _resultText,
                           style: const TextStyle(
                             fontSize: 18,
                             height: 1.6,
@@ -205,7 +223,6 @@ class _ResultScreenState extends State<ResultScreen> {
               height: 250,
               child: Row(
                 children: [
-                  //  ปุ่มซ้าย ถ่ายใหม่ กลับไปหน้ากล้อง
                   Expanded(
                     flex: 1,
                     child: ElevatedButton(
@@ -218,10 +235,11 @@ class _ResultScreenState extends State<ResultScreen> {
                         ),
                         alignment: Alignment.center,
                       ),
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        widget.onRetake?.call();
-                      },
+                      onPressed: () => _handleTwoStepButton(
+                        'retake',
+                        'take_photo_again.mp3',
+                        () => widget.onRetake?.call(),
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -259,10 +277,11 @@ class _ResultScreenState extends State<ResultScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        _playAudio();
-                      },
+                      onPressed: () => _handleTwoStepButton(
+                        'play',
+                        'replay_audio.mp3',
+                        () => _playAudio(),
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
