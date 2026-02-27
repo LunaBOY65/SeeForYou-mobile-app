@@ -53,19 +53,10 @@ class ExpiryScannerService {
         "[OCR_PIPELINE] Text Blocks Detected: ${recognizedText.blocks.length}",
       );
 
-      int totalBlocks = 0;
-      int badAngleCount = 0;
-
       // ============================================================
       // Step 1 : วนลูปตรวจสอบทีละบรรทัด (หาทั้งวันที่ และเช็คมุมไปพร้อมกัน)
       // ============================================================
       for (TextBlock block in recognizedText.blocks) {
-        // เก็บสถิติความเอียง (นับเฉพาะ Block ที่มีข้อความยาวหน่อย เพื่อความแม่น)
-        if (block.text.length > 3) {
-          totalBlocks++;
-          if (_isAngled(block.cornerPoints)) badAngleCount++;
-        }
-
         for (TextLine line in block.lines) {
           // คำนวณมุมของบรรทัดนี้
           double currentAngle = _calculateAngle(line.cornerPoints);
@@ -95,26 +86,6 @@ class ExpiryScannerService {
             );
           }
         }
-      }
-
-      debugPrint(
-        "[ANGLE_CHECK] Total Valid Blocks: $totalBlocks, Angled Blocks: $badAngleCount",
-      );
-      // คำนวณสรุปว่าภาพรวมเอียงไหม (เกิน 50% ของ Block เอียง)
-      bool isGlobalAngled =
-          totalBlocks > 0 && (badAngleCount / totalBlocks) > 0.5;
-
-      // ถ้าภาพเอียงมาก แจ้งเตือนเลย ไม่ต้องพยายามต่อ (ประหยัดเวลา)
-      if (isGlobalAngled) {
-        stopwatch.stop();
-        debugPrint(
-          "[ANGLE_CHECK] ALERT: Global Angle is too skewed (>50%). Aborting search.",
-        );
-        debugPrint(
-          "[OCR_PIPELINE] END -> Processing Time: ${stopwatch.elapsedMilliseconds} ms",
-        );
-        debugPrint("=======================================================\n");
-        return ScanResult(hasText: true, isWrongAngle: true);
       }
 
       // ============================================================
@@ -153,11 +124,7 @@ class ExpiryScannerService {
       );
       debugPrint("=======================================================\n");
 
-      return ScanResult(
-        expiryDate: date,
-        hasText: true,
-        isWrongAngle: isGlobalAngled,
-      );
+      return ScanResult(expiryDate: date, hasText: true, isWrongAngle: false);
     } catch (e) {
       debugPrint("[ERROR] Scanner Service Exception: $e");
       return ScanResult(hasText: false);

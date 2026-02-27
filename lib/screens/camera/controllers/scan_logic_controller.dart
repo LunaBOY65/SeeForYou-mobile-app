@@ -101,12 +101,9 @@ class ScanLogicController {
         // [กรณี 2] ไม่เจอวันที่เหมาะสมเลย
         _consecutiveFoundCount = 0; // รีเซ็ตความมั่นใจ
 
-        // เช็ค Error ย่อยๆ เพื่อช่วยบอกทาง User
-        if (result.isWrongAngle) {
-          _feedbackService.playRotateWarning();
-        } else if (result.hasText) {
-          _feedbackService
-              .triggerHapticLight(); // สั่นเบาๆ บอกว่ามีตัวหนังสือนะแต่ยังไม่เจอวันที่
+        // ถ้าเจอตัวหนังสืออื่นๆ แต่ยังไม่ใช่วันที่ให้สั่นกระตุ้นเบาๆ
+        if (result.hasText) {
+          _feedbackService.triggerHapticLight();
         }
       }
       // 5. ลบไฟล์ขยะทิ้ง

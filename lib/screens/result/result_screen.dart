@@ -80,6 +80,9 @@ class _ResultScreenState extends State<ResultScreen> {
 
   // ฟังก์ชันส่งรูปภาพขึ้นไปให้เซิร์ฟเวอร์ (API) ประมวลผลและรอรับคำอธิบายกลับมา
   Future<void> _analyzeImage() async {
+    final stopwatch = Stopwatch()..start();
+    debugPrint("[PERFORMANCE] Start measuring End-to-End latency...");
+
     // 1. เล่นเสียงบอกผู้ใช้ว่า "กำลังประมวลผล" เพื่อให้รู้ว่าแอปไม่ได้ค้าง
     _audioPlayer.play(AssetSource('audio/in_progress.mp3'));
 
@@ -134,6 +137,12 @@ class _ResultScreenState extends State<ResultScreen> {
             _audioUrl = audioUrl;
           });
 
+          // หยุดจับเวลาและปริ้นผลลัพธ์ กรณีสำเร็จ
+          stopwatch.stop();
+          debugPrint(
+            "[PERFORMANCE] End-to-End Latency (Success): ${stopwatch.elapsedMilliseconds} ms",
+          );
+
           _playAudio();
         }
       } else {
@@ -144,6 +153,13 @@ class _ResultScreenState extends State<ResultScreen> {
                 "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Code: ${response.statusCode})";
             _audioUrl = "";
           });
+
+          // หยุดจับเวลาและปริ้นผลลัพธ์ กรณี API ตอบกลับเป็น Error
+          stopwatch.stop();
+          debugPrint(
+            "[PERFORMANCE] End-to-End Latency (Server Error): ${stopwatch.elapsedMilliseconds} ms",
+          );
+
           // พอมันเห็นว่าเป็นค่าว่าง ไปเรียกเสียง error_sound.mp3 อัตโนมัติ
           _playAudio();
         }
@@ -156,6 +172,13 @@ class _ResultScreenState extends State<ResultScreen> {
           _resultText = "การเชื่อมต่อขัดข้อง: $e";
           _audioUrl = "";
         });
+
+        // หยุดจับเวลาและปริ้นผลลัพธ์ (กรณีเน็ตหลุด หรือเกิด Error ร้ายแรง)
+        stopwatch.stop();
+        debugPrint(
+          "[PERFORMANCE] End-to-End Latency (Network/Exception): ${stopwatch.elapsedMilliseconds} ms",
+        );
+
         _playAudio();
       }
     }
