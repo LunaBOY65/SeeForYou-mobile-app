@@ -39,10 +39,18 @@ class ExpiryScannerService {
   /// [imagePath] - ที่อยู่ไฟล์รูปภาพ
   /// Return [ScanResult] ที่ประกอบด้วยวันที่ (ถ้ามี) และสถานะต่างๆ
   Future<ScanResult> processImageSmart(String imagePath) async {
+    // เริ่มจับเวลาประมวลผล (เหมาะสำหรับใส่กราฟ Performance ในเล่มโปรเจค)
+    final stopwatch = Stopwatch()..start();
+    debugPrint("\n=======================================================");
+    debugPrint("[OCR_PIPELINE] START -> Processing Image...");
+    debugPrint("[OCR_PIPELINE] File Path: $imagePath");
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
       final RecognizedText recognizedText = await _textRecognizer.processImage(
         inputImage,
+      );
+      debugPrint(
+        "[OCR_PIPELINE] Text Blocks Detected: ${recognizedText.blocks.length}",
       );
 
       int totalBlocks = 0;
@@ -67,6 +75,16 @@ class ExpiryScannerService {
           String? dateInLine = _extractDateFromText(line.text);
 
           if (dateInLine != null) {
+            stopwatch.stop();
+            debugPrint(
+              "[RESULT] SUCCESS (Line-by-Line) -> Extracted Date: $dateInLine",
+            );
+            debugPrint(
+              "[OCR_PIPELINE] END -> Processing Time: ${stopwatch.elapsedMilliseconds} ms",
+            );
+            debugPrint(
+              "=======================================================\n",
+            );
             // หากเจอวันที่ คืนค่าทันที
             return ScanResult(
               expiryDate: dateInLine,
@@ -79,12 +97,23 @@ class ExpiryScannerService {
         }
       }
 
+      debugPrint(
+        "[ANGLE_CHECK] Total Valid Blocks: $totalBlocks, Angled Blocks: $badAngleCount",
+      );
       // คำนวณสรุปว่าภาพรวมเอียงไหม (เกิน 50% ของ Block เอียง)
       bool isGlobalAngled =
           totalBlocks > 0 && (badAngleCount / totalBlocks) > 0.5;
 
       // ถ้าภาพเอียงมาก แจ้งเตือนเลย ไม่ต้องพยายามต่อ (ประหยัดเวลา)
       if (isGlobalAngled) {
+        stopwatch.stop();
+        debugPrint(
+          "[ANGLE_CHECK] ALERT: Global Angle is too skewed (>50%). Aborting search.",
+        );
+        debugPrint(
+          "[OCR_PIPELINE] END -> Processing Time: ${stopwatch.elapsedMilliseconds} ms",
+        );
+        debugPrint("=======================================================\n");
         return ScanResult(hasText: true, isWrongAngle: true);
       }
 
@@ -92,6 +121,9 @@ class ExpiryScannerService {
       // Step 2 : Fallback รวมข้อความทั้งภาพ
       // ถ้าหาทีละบรรทัดไม่เจอ ให้นำทุก Block มาต่อกันแล้วค้นหาอีกครั้ง
       // ============================================================
+      debugPrint(
+        "[OCR_PIPELINE] Line-by-Line failed. Switching to Global Fallback strategy.",
+      );
       StringBuffer buffer = StringBuffer();
       for (TextBlock block in recognizedText.blocks) {
         buffer.write(block.text);
@@ -101,10 +133,25 @@ class ExpiryScannerService {
       String filteredText = buffer.toString();
 
       if (filteredText.trim().isEmpty) {
+        stopwatch.stop();
+        debugPrint("[OCR_PIPELINE] No valid text found in image.");
         return ScanResult(hasText: false);
       }
 
       String? date = _extractDateFromText(filteredText);
+
+      stopwatch.stop();
+      if (date != null) {
+        debugPrint(
+          "[RESULT] SUCCESS (Global Fallback) -> Extracted Date: $date",
+        );
+      } else {
+        debugPrint("[RESULT] FAILED -> No valid expiry date format found.");
+      }
+      debugPrint(
+        "[OCR_PIPELINE] END -> Processing Time: ${stopwatch.elapsedMilliseconds} ms",
+      );
+      debugPrint("=======================================================\n");
 
       return ScanResult(
         expiryDate: date,
@@ -112,7 +159,7 @@ class ExpiryScannerService {
         isWrongAngle: isGlobalAngled,
       );
     } catch (e) {
-      debugPrint("Scanner Service Error: $e");
+      debugPrint("[ERROR] Scanner Service Exception: $e");
       return ScanResult(hasText: false);
     }
   }
@@ -137,6 +184,13 @@ class ExpiryScannerService {
     // -----------------------------------------
     // OCR มักอ่านตัวเลขผิดเป็นตัวอักษรเมื่อ font ไม่ชัด หรือพื้นหลังลาย
     // แนวคิดคือ แปลงตัวอักษรที่หน้าตาคล้ายตัวเลขกลับมาเป็นตัวเลข เพื่อให้ Regex จับ pattern ได้ดีขึ้น
+
+    // ลบขึ้นบรรทัดใหม่เพื่อให้แสดงผลใน Console บรรทัดเดียวอ่านง่ายๆ
+    String consoleRawText = text.replaceAll('\n', ' ').trim();
+    if (consoleRawText.length > 50) {
+      consoleRawText = "${consoleRawText.substring(0, 50)}...";
+    }
+    debugPrint("[DATA_CLEANING] Input Text: '$consoleRawText'");
     String correctedText = text
         .toUpperCase()
         .replaceAll('O', '0')
@@ -163,6 +217,12 @@ class ExpiryScannerService {
     );
     final matchesLoose = loosePattern.allMatches(correctedText);
 
+    if (matchesLoose.isNotEmpty) {
+      debugPrint(
+        "[STRATEGY_1] Found ${matchesLoose.length} matches using Loose Pattern.",
+      );
+    }
+
     for (final match in matchesLoose) {
       // ไม่รู้ Format DD/MM หรือ MM/DD จึงแปลงและตรวจสอบความถูกต้อง
       // โดยลองสลับตำแหน่งดู ว่าแบบไหนสลับแล้วเป็นดูเป็น วันที่ที่ถูกต้อง ก็เอาอันนั้น
@@ -173,7 +233,10 @@ class ExpiryScannerService {
 
       // ใช้ Helper ตรวจสอบสลับตำแหน่งให้อัตโนมัติ
       String? result = _checkPermutations(v1, v2, v3);
-      if (result != null) return result;
+      if (result != null) {
+        debugPrint("[STRATEGY_1] Match Validated: $result");
+        return result;
+      }
     }
 
     // --- PART 3: STRATEGY 2 - Anchor Pattern (Keyword Based) ---
@@ -216,6 +279,12 @@ class ExpiryScannerService {
     );
 
     final matchesAnchor = anchorPattern.allMatches(correctedText);
+    if (matchesAnchor.isNotEmpty) {
+      debugPrint(
+        "[STRATEGY_2] Found ${matchesAnchor.length} matches using Keyword Anchor Pattern.",
+      );
+    }
+
     for (final match in matchesAnchor) {
       String dateRaw = match.group(2)!;
       final subParts = dateRaw.split(RegExp(r'[\.\/\-\s]'));
@@ -225,7 +294,11 @@ class ExpiryScannerService {
         int? v2 = int.tryParse(subParts[1]);
         int? v3 = int.tryParse(subParts[2]);
 
-        if (_isValidDate(v1 ?? 0, v2 ?? 0, v3 ?? 0)) return "$v1/$v2/$v3";
+        if (_isValidDate(v1 ?? 0, v2 ?? 0, v3 ?? 0)) {
+          String result = "$v1/$v2/$v3";
+          debugPrint("[STRATEGY_2] Match Validated: $result");
+          return result;
+        }
       }
     }
 
@@ -237,6 +310,12 @@ class ExpiryScannerService {
 
     // 4.1 กลุ่มตัวเลขติดๆกัน เช่น 201225 (6 หรือ 8 หลัก)
     final digitGroups = RegExp(r'(\d{6,8})').allMatches(digitsOnly);
+    if (digitGroups.isNotEmpty) {
+      debugPrint(
+        "[STRATEGY_3] Testing ${digitGroups.length} digit-only groups (Fallback).",
+      );
+    }
+
     for (final match in digitGroups) {
       String raw = match.group(0)!;
 
@@ -245,21 +324,37 @@ class ExpiryScannerService {
         int v1 = int.parse(raw.substring(0, 2));
         int v2 = int.parse(raw.substring(2, 4));
         int v3 = int.parse(raw.substring(4, 6));
-        if (_isValidDate(v1, v2, v3)) return "$v1/$v2/$v3";
-        if (_isValidDate(v3, v2, v1)) return "$v3/$v2/$v1";
+        if (_isValidDate(v1, v2, v3)) {
+          debugPrint("[STRATEGY_3] Match Validated (6-digits): $v1/$v2/$v3");
+          return "$v1/$v2/$v3";
+        }
+        if (_isValidDate(v3, v2, v1)) {
+          debugPrint(
+            "[STRATEGY_3] Match Validated (6-digits reversed): $v3/$v2/$v1",
+          );
+          return "$v3/$v2/$v1";
+        }
       } else if (raw.length == 8) {
         // ตัดแบ่ง 2-2-4 หรือ 4-2-2 (ddmmyyyy หรือ yyyymmdd)
         int d = int.parse(raw.substring(0, 2));
         int m = int.parse(raw.substring(2, 4));
         int y = int.parse(raw.substring(4, 8));
 
-        if (_isValidDate(d, m, y)) return "$d/$m/$y";
+        if (_isValidDate(d, m, y)) {
+          debugPrint("[STRATEGY_3] Match Validated (8-digits): $d/$m/$y");
+          return "$d/$m/$y";
+        }
 
         // yyyymmdd
         int yRev = int.parse(raw.substring(0, 4));
         int mRev = int.parse(raw.substring(4, 6));
         int dRev = int.parse(raw.substring(6, 8));
-        if (_isValidDate(dRev, mRev, yRev)) return "$dRev/$mRev/$yRev";
+        if (_isValidDate(dRev, mRev, yRev)) {
+          debugPrint(
+            "[STRATEGY_3] Match Validated (8-digits reversed): $dRev/$mRev/$yRev",
+          );
+          return "$dRev/$mRev/$yRev";
+        }
       }
     }
 
@@ -272,7 +367,10 @@ class ExpiryScannerService {
       int p3 = int.parse(match.group(3)!);
 
       String? result = _checkPermutations(p1, p2, p3);
-      if (result != null) return result;
+      if (result != null) {
+        debugPrint("[STRATEGY_3] Spaced format Validated: $result");
+        return result;
+      }
     }
 
     // ถ้าลองทุกอันแล้วยังไม่เจอ ยอมแพ้ return null
