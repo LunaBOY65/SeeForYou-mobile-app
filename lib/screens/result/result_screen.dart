@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:seeforyou_app/services/api_service.dart';
 
@@ -58,22 +59,65 @@ class _ResultScreenState extends State<ResultScreen> {
 
   // ฟังก์ชันสำหรับเล่นเสียงอ่านคำอธิบายภาพที่ได้จาก API
   Future<void> _playAudio() async {
-    if (_audioUrl != null) {
+    // สั่งหยุดเสียงที่อาจจะเล่นค้างอยู่ก่อนเสมอ
+    await _audioPlayer.stop();
+
+    // เช็คว่ามีลิงก์เสียงส่งมา และต้องไม่เป็นค่าว่าง ("")
+    if (_audioUrl != null && _audioUrl != "") {
       try {
-        await _audioPlayer.stop();
+        // ลองเล่นเสียงผลลัพธ์ที่ได้จาก Botnoi (ผ่านเน็ต)
         await _audioPlayer.play(UrlSource(_audioUrl!));
-      } catch (_) {}
+      } catch (_) {
+        // ถ้าเน็ตผู้ใช้หลุดกระทันหันตอนกำลังจะเล่นเสียง ให้เล่นเสียงแจ้งเตือนจากในเครื่องแทน
+        await _audioPlayer.play(AssetSource('audio/error_sound.mp3'));
+      }
+    } else {
+      // ถ้าเซิร์ฟเวอร์ Botnoi ล่ม หรือ พอยท์หมด (ไม่มีลิงก์ส่งมา)
+      // ให้เล่นเสียงแจ้งเตือนจากในเครื่อง เพื่อไม่ให้ผู้ใช้พิการทางสายตารอเก้อ
+      await _audioPlayer.play(AssetSource('audio/error_sound.mp3'));
     }
   }
 
-  // TODO: ฟังก์ชันส่งรูปภาพอยากแก้ต่อให้มีการจัดการที่ดีขึ้น
   // ฟังก์ชันส่งรูปภาพขึ้นไปให้เซิร์ฟเวอร์ (API) ประมวลผลและรอรับคำอธิบายกลับมา
   Future<void> _analyzeImage() async {
     // 1. เล่นเสียงบอกผู้ใช้ว่า "กำลังประมวลผล" เพื่อให้รู้ว่าแอปไม่ได้ค้าง
     _audioPlayer.play(AssetSource('audio/in_progress.mp3'));
 
     try {
-      final imageFile = File(widget.imagePath!);
+      // ทำการ Resize และบีบอัดภาพก่อนส่ง
+      File imageFile = File(widget.imagePath!);
+
+      // สร้างชื่อไฟล์ใหม่สำหรับรูปที่ถูกย่อแล้ว (เติมคำว่า _resized ต่อท้าย)
+      final String targetPath = widget.imagePath!.replaceAll(
+        RegExp(r'\.\w+$'),
+        '_resized.jpg',
+      );
+
+      debugPrint(
+        "[API_UPLOAD] Original File Size: ${imageFile.lengthSync()} bytes",
+      );
+
+      // สั่งย่อขนาดภาพให้ด้านใดด้านหนึ่งไม่เกิน 640 พิกเซล (มาตรฐานที่ YOLO ชอบ)
+      final XFile?
+      compressedXFile = await FlutterImageCompress.compressAndGetFile(
+        imageFile.absolute.path,
+        targetPath,
+        minWidth: 640,
+        minHeight: 640,
+        quality:
+            80, // ปรับคุณภาพการบีบอัดได้ที่ตรงนี้ (0-100) ยิ่งต่ำยิ่งบีบอัดมาก แต่คุณภาพลดลง
+      );
+
+      // ตรวจสอบว่าบีบอัดสำเร็จไหม ถ้าสำเร็จให้เปลี่ยนมาใช้ไฟล์ใหม่นี้แทนไฟล์เดิม
+      if (compressedXFile != null) {
+        imageFile = File(compressedXFile.path);
+        debugPrint(
+          "[API_UPLOAD] Resized File Size: ${imageFile.lengthSync()} bytes",
+        );
+      } else {
+        debugPrint("[API_UPLOAD] Warning: Resize failed, using original file.");
+      }
+      debugPrint("[API_UPLOAD] Sending image to server...");
       final response = await ApiService.uploadImage(imageFile);
 
       // 2. ตรวจสอบสถานะการตอบกลับ (Status Code 200 หมายถึงทำงานสำเร็จ)
@@ -98,7 +142,10 @@ class _ResultScreenState extends State<ResultScreen> {
             _isLoading = false;
             _resultText =
                 "เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Code: ${response.statusCode})";
+            _audioUrl = "";
           });
+          // พอมันเห็นว่าเป็นค่าว่าง ไปเรียกเสียง error_sound.mp3 อัตโนมัติ
+          _playAudio();
         }
       }
     } catch (e) {
@@ -107,7 +154,9 @@ class _ResultScreenState extends State<ResultScreen> {
         setState(() {
           _isLoading = false;
           _resultText = "การเชื่อมต่อขัดข้อง: $e";
+          _audioUrl = "";
         });
+        _playAudio();
       }
     }
   }
