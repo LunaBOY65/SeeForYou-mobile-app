@@ -14,10 +14,10 @@ class ScanLogicController {
   // บริการ AI แกะตัวอักษร
   int _consecutiveFoundCount = 0;
 
-  //(เป็นตัวนับ)ฟังก์ชันที่จะถูกเรียกเมื่อเจอรูปที่ใช้ได้จริงจะส่ง Path กลับไป
+  //ตัวแปรตำหรับวันหมดอายุ เก็บพิมพ์เขียวของ class ExpiryScannerService
   final ExpiryScannerService _scannerService = ExpiryScannerService();
 
-  // ตัวนับต้องเจอวันที่ถูกต้องติดกัน n ครั้งถึงจะยอมรับได้ (เพื่อกันพลาด)
+  // ใครที่เรียกใช้ชั้นผ่าน onFound ต้องรับค่า path ของรูป มาให้ด้วยนะ
   final Function(String path) onFound;
 
   // Timer ตั้งเวลาสำหรับวนลูปถ่ายภาพ
@@ -91,7 +91,7 @@ class ScanLogicController {
 
           // ถ้ามั่นใจครบ 2 ครั้งติดกัน
           if (_consecutiveFoundCount >= 2) {
-            stopLoop(); // หยุดสแกน
+            stopLoop();
             _feedbackService.playFoundDate(); // สั่นบอก User
             onFound(imageFile.path); // ส่งรูปกลับไปใช้งานจริง
             return; // จบการทำงานเลย ไม่ให้โค้ดด้านล่างลบรูปทิ้ง
