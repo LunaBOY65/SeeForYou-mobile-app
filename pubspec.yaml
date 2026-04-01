@@ -45,6 +45,7 @@ dependencies:
   google_mlkit_text_recognition: ^0.15.0
   flutter_image_compress: ^2.4.0
   flutter_launcher_icons: ^0.14.4
+  firebase_core: ^4.6.0
 
 dev_dependencies:
   flutter_test:

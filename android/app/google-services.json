@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "9803217882",
+    "project_id": "botnoiseeforyou",
+    "storage_bucket": "botnoiseeforyou.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:9803217882:android:e7eaef7252fd394397dee3",
+        "android_client_info": {
+          "package_name": "com.example.seeforyou_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA89lgmqdQG7GR2Nvra5BToNled7z6Duns"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
