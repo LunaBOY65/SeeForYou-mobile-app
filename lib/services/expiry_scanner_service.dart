@@ -2,22 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
-/// ตัวเก็บข้อมูลหลังสแกนเสร็จ เพื่อส่งไปบอกหน้าจอ UI ว่าเจออะไรบ้าง
-/// มีทั้งวันที่ที่เจอ, สถานะว่าภาพเอียงไหม และตำแหน่งของข้อความในรูป
 class ScanResult {
-  /// วันที่ที่แกะออกมาได้ เช่น 25/12/25 ถ้าหาไม่เจอจะเป็น null
   final String? expiryDate;
-
-  /// ในรูปมีตัวหนังสือบ้างไหม เอาไว้สั่งให้เครื่องสั่นเบาๆ บอกผู้ใช้ว่าเริ่มเจอข้อมูลแล้ว
   final bool hasText;
-
-  /// เช็คว่ากล้องหรือข้อความเอียงไหม ถ้าเอียงเกิน 20 องศา จะให้แอปส่งเสียงเตือน
   final bool isWrongAngle;
-
-  /// พิกัดสี่เหลี่ยมของข้อความบนหน้าจอ เอาไว้ทำ Overlay สวยๆ หรือเช็คตำแหน่ง
   final Rect? boundingBox;
-
-  /// องศาความเอียงของข้อความที่วัดได้จริง
   final double? angle;
 
   ScanResult({
@@ -29,15 +18,11 @@ class ScanResult {
   });
 }
 
-/// Service สำหรับจัดการการสแกนวันหมดอายุด้วย ML Kit
 class ExpiryScannerService {
   final TextRecognizer _textRecognizer = TextRecognizer(
     script: TextRecognitionScript.latin,
   );
 
-  /// ฟังก์ชันหลัก รับรูปมาแล้วให้ AI แกะวันที่ และเช็คท่าทางกล้อง
-  /// [imagePath] - ที่อยู่ไฟล์รูปภาพ
-  /// ส่งค่ากลับเป็น [ScanResult] เพื่อเอาไปใช้งานต่อในหน้าจอหลัก
   Future<ScanResult> processImageSmart(String imagePath) async {
     final stopwatch = Stopwatch()..start();
     debugPrint("\n=======================================================");
@@ -53,18 +38,11 @@ class ExpiryScannerService {
         "[OCR_PIPELINE] Text Blocks Detected: ${recognizedText.blocks.length}",
       );
 
-      // ------------------------------------------------------------
-      // Step 1 : ลองอ่านทีละบรรทัดดูก่อน (Line-by-Line)
-      // OCR จะอ่านข้อความที่อยู่บรรทัดเดียวกันได้แม่นกว่า
-      // เราจะวนหาวันที่และเช็คความเอียงไปพร้อมๆ กันเลยประหยัดเวลา
-      // ------------------------------------------------------------
       for (TextBlock block in recognizedText.blocks) {
         for (TextLine line in block.lines) {
-          // เช็คว่าบรรทัดนี้เอียงกี่องศา
           double currentAngle = _calculateAngle(line.cornerPoints);
           bool lineIsAngled = currentAngle.abs() > 20;
 
-          // ส่งข้อความในบรรทัดนั้นไปตรวจหาวันที่
           String? dateInLine = _extractDateFromText(line.text);
 
           if (dateInLine != null) {
@@ -79,7 +57,6 @@ class ExpiryScannerService {
               "=======================================================\n",
             );
 
-            // หากเจอวันที่ คืนค่าทันที
             return ScanResult(
               expiryDate: dateInLine,
               hasText: true,
@@ -91,10 +68,6 @@ class ExpiryScannerService {
         }
       }
 
-      // ------------------------------------------------------------
-      // Step 2 : ถ้าอ่านทีละบรรทัดแล้วไม่ค่อยเวอร์ค ให้ลองรวมข้อความทั้งรูปหาใหม่ (Full Text Fallback)
-      // เอาทุก Block มาต่อกันแล้วค้นหาอีกครั้ง (แต่ส่วนมากก็คงได้ตั้งแต่ข้างบนละนะ)
-      // ------------------------------------------------------------
       debugPrint(
         "[OCR_PIPELINE] Line-by-Line failed. Switching to Global Fallback strategy.",
       );
@@ -143,21 +116,13 @@ class ExpiryScannerService {
     return atan2(p2.y - p1.y, p2.x - p1.x) * 180 / pi;
   }
 
-  /// ไส้ในการแกะวันที่ใช้ Regex หลายๆ แบบมาช่วยกันหา
   String? _extractDateFromText(String text) {
-    // ------------------------------------------------------------
-    // Part 1: เตรียมข้อมูล (Data Cleaning)
-    // สำคัญมาก! ปกติ OCR มักจะอ่านเลข 0 เป็นตัว O หรือเลข 5 เป็นตัว S
-    // เราต้องแก้แปลงตัวอักษรที่หน้าตาคล้ายตัวเลขกลับมาเป็นตัวเลข
-    // ------------------------------------------------------------
-
     String consoleRawText = text.replaceAll('\n', ' ').trim();
     if (consoleRawText.length > 50) {
       consoleRawText = "${consoleRawText.substring(0, 50)}...";
     }
     debugPrint("[DATA_CLEANING] Input Text: '$consoleRawText'");
 
-    // แยกเก็บแบบตัวพิมพ์ใหญ่ไว้หา Keyword พวกคำว่า EXP จะได้ไม่โดนแก้เป็นเลขจนหาไม่เจอ
     String upperText = text.toUpperCase();
 
     // แปลงตัวอักษรที่คล้ายเลขให้เป็นเลข
@@ -171,10 +136,7 @@ class ExpiryScannerService {
 
     String spacedText = correctedText.replaceAll(RegExp(r'[.:/\-]'), ' ');
 
-    // ------------------------------------------------------------
-    // วิธีที่ 1 หาจากคำนำหน้า (Keyword) เช่น EXP 25/12/25
-    // เพราะถ้ามีคำว่า EXP นำหน้า ตัวเลขข้างหลังคือวันที่แน่นอน
-    // ------------------------------------------------------------
+    // Keyword
     final keywords = [
       'EXP',
       'MFD',
@@ -220,11 +182,8 @@ class ExpiryScannerService {
       }
     }
 
-    // ------------------------------------------------------------
-    // วิธีที่ 2 หาวันที่มีเครื่องหมายคั่น ( / . - ) เช่น 25/12/2025 หรือ 25.10.2024
-    // ใช้ในกรณีที่ไม่มีคำว่า EXP บอก
-    // รหัสลับ Regex: [ \d{1,2} เลขวัน 1-2ตัว] + [คั่น?] + [\d{1,2} เลขเดือน1-2ตัว] + [คั่น?] + [\d{2,4} ปี2-4ตัว]
-    // ------------------------------------------------------------
+    // มีเครื่องหมายคั่น ( / . - ) เช่น 25/12/2025 หรือ 25.10.2024
+    // [ \d{1,2} เลขวัน 1-2ตัว] + [คั่น?] + [\d{1,2} เลขเดือน1-2ตัว] + [คั่น?] + [\d{2,4} ปี2-4ตัว]
     final loosePattern = RegExp(
       r'\b(\d{1,2})[\.\/\-\s]?(\d{1,2})[\.\/\-\s]?(\d{2,4})\b',
     );
@@ -250,15 +209,9 @@ class ExpiryScannerService {
       }
     }
 
-    // ------------------------------------------------------------
-    // วิธีที่ 3 หาเลขล้วนๆ (ไม่มีอะไรคั่นเลย)
-    // สำหรับ format ที่ไม่มีตัวคั่น ที่ชอบพิมพ์เลขติดกัน เช่น 231025 หรือ 20231023
-    // ------------------------------------------------------------
-
-    // ดึงมาแค่ตัวเลขในบรรทัดนั้น ไม่เอาตัวเลขทั้งภาพมาต่อกัน กันเอาเลขบาร์โค้ดมาผสมด้วย
+    // วิธีที่ 3 หาเลขล้วนๆ เช่น 231025 หรือ 20231023
     String lineDigits = correctedText.replaceAll(RegExp(r'[^0-9]'), '');
 
-    // ถ้าในบรรทัดนั้นมีตัวเลขยาวเกินไปให้ข้ามเลย
     if (lineDigits.length > 10) lineDigits = "";
 
     final digitGroups = RegExp(r'(\d{6,8})').allMatches(lineDigits);
@@ -295,7 +248,7 @@ class ExpiryScannerService {
       }
     }
 
-    // กรณีสุดท้าย มีเว้นวรรคแต่ไม่มีเครื่องหมายอื่น เช่น 25 12 25
+    // มีเว้นวรรคแต่ไม่มีเครื่องหมายอื่น เช่น 25 12 25
     final spacedPattern = RegExp(r'\b(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})\b');
     final matchesSpaced = spacedPattern.allMatches(spacedText);
 
@@ -310,11 +263,9 @@ class ExpiryScannerService {
       }
     }
 
-    // ถ้าลองทุกอันแล้วยังไม่เจอเลย
     return null;
   }
 
-  /// เช็คความสมเหตุสมผลว่า ตัวเลขที่แกะมาเป็นวันที่จริงไหม
   bool _isValidDate(int d, int m, int y) {
     if (d < 1 || d > 31) return false;
     if (m < 1 || m > 12) return false;
@@ -322,14 +273,11 @@ class ExpiryScannerService {
     int fullYear = y;
 
     if (y >= 10 && y < 100) {
-      fullYear = 2000 + y; // ถ้าปีมี 2 หลัก เช่น 25 ให้ตีเป็น ค.ศ. 2025
+      fullYear = 2000 + y;
     } else if (y >= 2500) {
-      fullYear =
-          y - 543; // ถ้าเป็นปี พ.ศ. เช่น 2569 ให้ลบ 543 เพื่อทำเป็นปี ค.ศ.
+      fullYear = y - 543;
     }
 
-    // สุดท้ายคืนค่า true เฉพาะวันที่ที่อยู่ในช่วงปีที่กำหนดเท่านั้น
-    // ครอบคลุมทั้งแบบ 1, 2 และ 3 ในที่เดียว
     return fullYear >= 2018 && fullYear <= 2040;
   }
 

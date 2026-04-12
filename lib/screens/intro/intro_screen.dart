@@ -4,18 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
 
-/// หน้าจอแนะนำการใช้งาน IntroScreen
-/// ใช้ StatefulWidget เพราะหน้านี้ต้องมีการอัปเดตหน้าจอด้วย (เช่น การจับเวลากดค้าง, การเล่นเสียง)
 class IntroScreen extends StatefulWidget {
-  // ตัวแปรสำหรับรับคำสั่งเปลี่ยนหน้า เอาไว้รับคำสั่งจากหน้า RootScreen
-  // คล้ายรีโมทพอกดปุ๊บ มันจะไปสั่งให้ RootScreen เปลี่ยนหน้าให้
   final VoidCallback? onNext;
-
-  // Constructor สำหรับรับค่า onNext เข้ามาใช้งาน
   const IntroScreen({super.key, this.onNext});
 
   @override
-  // คอยจัดการข้อมูลและการเปลี่ยนแปลงของหน้านี้ ซึ่งไปเรียกหรือเขียนคลาส _IntroScreenState อยู่ข้างล่างอีกที
   State<IntroScreen> createState() => _IntroScreenState();
 }
 
@@ -23,31 +16,23 @@ class _IntroScreenState extends State<IntroScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final AudioPlayer _hintPlayer = AudioPlayer();
   Timer? _holdTimer;
-  // เอาไว้เช็คว่ากำลังเล่นเสียงอธิบายยาวๆอยู่ไหม จะได้ไม่เล่นเสียงอื่นแทรก
   bool _isPlayingInstruction = false;
-  // ตัวนับว่าผู้ใช้กดหน้าจอค้างมากี่วินาทีแล้ว
   int _secondsHeld = 0;
 
-  // เริ่มต้นหน้าจอมาให้เล่นเสียงบอกวิธีใช้ก่อนเลย (เล่นซ้ำ 2 รอบถ้ายังไม่ได้กดหน้าจอ)
   @override
   void initState() {
     super.initState();
     _playHintLoop();
   }
 
-  //คืนทรัพยากร
   @override
   void dispose() {
-    // ทำงานตอนที่ปิดหรือเปลี่ยนหน้านี้ เป็นการคืนทรัพยากรให้ระบบ
-    // สำคัญมาก! ต้องสั่งปิดเครื่องเล่นเสียงและตัวจับเวลาทั้งหมด
-    // เพื่อไม่ให้มันไปทำงานแอบกินแบตหรือส่งเสียงในขณะที่ผู้ใช้เปลี่ยนไปหน้าอื่นแล้ว
     _audioPlayer.dispose();
     _hintPlayer.dispose();
     _holdTimer?.cancel();
     super.dispose();
   }
 
-  /// เล่นเสียงบอกวิธีใช้งาน (เล่นซ้ำ 2 รอบหากผู้ใช้ยังไม่ได้กดหน้าจอ)
   Future<void> _playHintLoop() async {
     try {
       if (_isPlayingInstruction) {
@@ -58,7 +43,6 @@ class _IntroScreenState extends State<IntroScreen> {
 
       // วนลูปเล่นเสียง 2 รอบ
       for (int i = 0; i < 2; i++) {
-        // mounted เช็คว่าผู้ใช้ยังเปิดหน้านี้อยู่ไหม ถ้าเปลี่ยนหน้าไปแล้วจะได้หยุดทำงานของเสียงและตัวจับเวลา
         if (!mounted || _isPlayingInstruction) break;
 
         await _hintPlayer.play(AssetSource('audio/hint.mp3'));
@@ -78,7 +62,6 @@ class _IntroScreenState extends State<IntroScreen> {
     _holdTimer?.cancel();
     _secondsHeld = 0;
 
-    // Timer.periodic สั่งให้ทำงานซ้ำๆทุก 1 วินาที เพื่อเช็คว่าผู้ใช้กดค้างครบ 3 วิหรือยัง
     _holdTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _secondsHeld++;
 
@@ -89,14 +72,12 @@ class _IntroScreenState extends State<IntroScreen> {
       });
 
       if (_secondsHeld >= 3) {
-        // เมื่อกดค้างครบ 3 วินาทีตามที่กำหนดไว้ ให้หยุดจับเวลาและเล่นเสียงคำอธิบาย
         _holdTimer?.cancel();
         _playInstructionAudio();
       }
     });
   }
 
-  /// ยกเลิกการจับเวลาเมื่อผู้ใช้ปล่อยมือก่อนครบ 3 วินาที
   void _stopHolding() {
     _holdTimer?.cancel();
     _secondsHeld = 0;
@@ -107,7 +88,6 @@ class _IntroScreenState extends State<IntroScreen> {
     }
   }
 
-  /// เล่นเสียงคำอธิบายหลักเมื่อผู้ใช้กดค้างครบเวลาที่กำหนดไว้
   Future<void> _playInstructionAudio() async {
     try {
       setState(() => _isPlayingInstruction = true);
@@ -121,8 +101,6 @@ class _IntroScreenState extends State<IntroScreen> {
     }
   }
 
-  /// เปลี่ยนไปหน้าถัดไป และหยุดการทำงานของเสียงรวมถึงตัวจับเวลาทั้งหมด
-  /// กันเหนียวให้แน่ใจว่าทุกอย่างถูกกหยุดก่อนเปลี่ยนหน้า เพื่อไม่ให้มีเสียงหรือการจับเวลาที่หลงเหลือไปทำงานในหน้าถัดไป
   void _triggerNextPage() {
     _holdTimer?.cancel();
     _hintPlayer.stop();
@@ -139,21 +117,13 @@ class _IntroScreenState extends State<IntroScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: GestureDetector(
-            // ควบคุมการ touch หน้าจอทั้งหมดที่ปุ่มใหญ่นี้ปุ่มเดียว
-            // ใช้ตรวจการปัดนิ้วซ้าย-ขวา
             onHorizontalDragEnd: (details) {
-              // เช็คว่ามีความเร็วในการปัดจริงนะ และค่าความเร็วติดลบ (< 0)
-              // ซึ่งในระบบแอป การปัดไปทางซ้าย คือการย้อนศรแกน X ค่าความเร็วจะติดลบเสมอ
               if (details.primaryVelocity != null &&
                   details.primaryVelocity! < 0) {
                 HapticFeedback.heavyImpact();
-                _triggerNextPage(); // สั่งเปลี่ยนไปหน้าถัดไป
+                _triggerNextPage();
               }
             },
-            // [Touch Action]
-            // เมื่อนิ้วแตะโดนหน้าจอ
-            // เมื่อยกนิ้วขึ้น
-            // เมื่อนิ้วขยับหลุดออกจากปุ่ม
             onLongPressDown: (_) => _startHolding(),
             onLongPressUp: () => _stopHolding(),
             onLongPressCancel: () => _stopHolding(),
